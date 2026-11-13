@@ -6,7 +6,12 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <NoWarn>$(NoWarn);CS1591;CS0618</NoWarn>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Decodificador OGG Vorbis (NVorbis 0.10.5, MIT), incluido como código fuente. -->
+    <Compile Include="..\ThirdParty\NVorbis\**\*.cs" Link="NVorbis\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
   <ItemGroup>
     <!-- Solo para compilar: en ejecución se usa el exe del usuario, por eso no se copia (Private=false). -->
     <ProjectReference Include="..\FnrStub\FnrStub.csproj" Private="false" />

@@ -99,17 +99,18 @@ static class Anchor
 sealed class Settings
 {
     public int Scale; // 0 = automático
+    public bool Sound = true;
 
     public static Settings Load(Context ctx)
     {
         var p = ctx.GetSharedPreferences("fnr", FileCreationMode.Private);
-        return new Settings { Scale = p.GetInt("scale", 0) };
+        return new Settings { Scale = p.GetInt("scale", 0), Sound = p.GetBoolean("sound", true) };
     }
 
     public void Save(Context ctx)
     {
         var p = ctx.GetSharedPreferences("fnr", FileCreationMode.Private).Edit();
-        p.PutInt("scale", Scale); p.Apply();
+        p.PutInt("scale", Scale); p.PutBoolean("sound", Sound); p.Apply();
     }
 
     /// <summary>Resolución interna = 354x200 x escala. Igual que el PC pero tope 4 por rendimiento.</summary>

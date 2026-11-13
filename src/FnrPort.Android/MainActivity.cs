@@ -21,7 +21,7 @@ public class MainActivity : Activity
 {
     const int ReqFolder = 1, ReqSave = 2;
     TextView mStatus;
-    Button mPlay, mPick, mSave, mScale;
+    Button mPlay, mPick, mSave, mScale, mSound;
     Settings mCfg;
     bool mBusy;
 
@@ -58,6 +58,7 @@ public class MainActivity : Activity
         root.AddView(row);
         var row2 = new LinearLayout(this) { Orientation = Orientation.Horizontal };
         row2.SetPadding(0, 16, 0, 0);
+        mSound = AddButton(row2, "", (s, e) => { mCfg.Sound = !mCfg.Sound; mCfg.Save(this); Refresh(); });
         AddButton(row2, "Guardar registro en Descargas", (s, e) => ExportLog(false));
         AddButton(row2, "Compartir registro", (s, e) => ExportLog(true));
         root.AddView(row2);
@@ -91,6 +92,7 @@ public class MainActivity : Activity
         string problem = GameLauncher.Validate(GameDir);
         mPlay.Enabled = problem == null && !mBusy;
         mPick.Enabled = mSave.Enabled = mScale.Enabled = !mBusy;
+        mSound.Text = "Sonido: " + (mCfg.Sound ? "sí" : "no");
         mScale.Text = "Resolución: " + (mCfg.Scale == 0 ? $"auto (x{Settings.AutoScale(this)})" : "x" + mCfg.Scale);
         if (!mBusy)
             mStatus.Text = problem == null

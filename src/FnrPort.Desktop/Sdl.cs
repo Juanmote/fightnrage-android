@@ -64,5 +64,20 @@ static unsafe class SDL
     [StructLayout(LayoutKind.Sequential)]
     public struct DisplayMode { public uint format; public int w, h, refresh_rate; public IntPtr driverdata; }
 
+    // Audio (modo cola: sin callback)
+    public const uint INIT_AUDIO = 0x10;
+    public const ushort AUDIO_F32 = 0x8120;
+    [StructLayout(LayoutKind.Sequential)]
+    public struct AudioSpec { public int freq; public ushort format; public byte channels, silence; public ushort samples, padding; public uint size; public IntPtr callback, userdata; }
+    [DllImport(Lib)] public static extern int SDL_InitSubSystem(uint flags);
+    [DllImport(Lib)] public static extern void SDL_QuitSubSystem(uint flags);
+    [DllImport(Lib)] public static extern uint SDL_OpenAudioDevice(IntPtr device, int iscapture, ref AudioSpec desired, out AudioSpec obtained, int allowedChanges);
+    [DllImport(Lib)] public static extern void SDL_PauseAudioDevice(uint dev, int pause);
+    [DllImport(Lib)] public static extern int SDL_QueueAudio(uint dev, void* data, uint len);
+    [DllImport(Lib)] public static extern uint SDL_GetQueuedAudioSize(uint dev);
+    [DllImport(Lib)] public static extern void SDL_ClearQueuedAudio(uint dev);
+    [DllImport(Lib)] public static extern void SDL_CloseAudioDevice(uint dev);
+    [DllImport(Lib)] public static extern IntPtr SDL_GetCurrentAudioDriver();
+
     public static string Error() => Marshal.PtrToStringAnsi(SDL_GetError());
 }

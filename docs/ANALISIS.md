@@ -84,17 +84,32 @@ El propio exe trae `Empty_AudioImplementation.Empty_AudioEngine` (audio mudo): �
 ## Plan
 
 1. **Fase 1:** launcher + AndroidCore + gráficos (GLES 3) + mando, audio mudo. ✅ Probado en Odin 3 (Android 15) con v0.1.6: menús, cambio de idioma, partida y salir, todo bien.
-2. **Fase 2:** audio (FMOD 2.x Android u otro motor).
+2. **Fase 2:** audio con mezclador propio. ✅ Implementado y probado en PC (grabación a WAV); pendiente de probar en la Odin 3.
 3. **Fase 3:** controles táctiles, ajustes, soporte de la versión Steam.
 
 ## Pendiente
 
 - Comprobar el exe de Steam.
 
-## Siguiente: sonido (fase 2)
+## Sonido (fase 2)
 
-- Implementar `IAudioEngine`/`ISound`/`ISoundInstance`/`IMusic` (ver `FModAudioImplementation` del exe
-  descompilado: volumen, pan, pitch, loop, pausa; `ISound.Play(volumen, posición, pitch, loop)`).
-- Formatos: WAV (efectos, 248) y OGG (música, 51), leídos con `PathIndexer` (gzip).
-- Plan: mezclador propio en C# + salida AudioTrack (Android) / SDL (escritorio), WAV propio y OGG con NVorbis
-  (MIT, NuGet en CI). Alternativa descartada por ahora: FMOD para Android (licencia y versión 1.07).
+Réplica de `FModAudioImplementation` (descompilada del exe con un volcador de IL propio) sin FMOD:
+
+- `FnrPort.Core/Audio/PortAudio.cs`: `PortAudioEngine` (IAudioEngine), `PortSound` (ISound + IMusic, con su
+  instancia por defecto `Inst`) y `PortSoundInstance`. Igual que FMOD: cada instancia usa una sola voz y
+  `Play` la reinicia; `IsPlaying` sigue a true en pausa; `Muted` = volumen general 0.
+- `Mixer.cs`: mezclador en C#: remuestreo lineal (tono = multiplicador de frecuencia), pan de potencia
+  constante para mono y balance para estéreo (como `Channel.setPan`), rampa de volumen por bloque (fundidos
+  sin chasquidos) y recorte final. Un hilo (`AudioPump`) le pide bloques y los entrega a la salida.
+- `AudioData.cs`: los sonidos se resuelven con `PathIndexer.GetPath` (los .dat de audio van **sin** gzip:
+  WAV/OGG tal cual; si alguno va comprimido se descomprime). Efectos WAV (PCM 8/16/32 bits, mono casi todos,
+  22–96 kHz) se cargan enteros en float. Música OGG: se decodifica mientras suena con **NVorbis 0.10.5**
+  (MIT, código fuente en `src/ThirdParty/NVorbis`, sin NuGet).
+- Bucles de la música: como el original, etiqueta `LOOP_START` (ms) [+ `LOOP_END`] o `LOOPSTART`/`LOOPLENGTH`
+  (muestras). Las 51 músicas usan `LOOP_START` en ms; el salto de bucle es exacto a la muestra.
+- Salidas (`AudioOutput`, sin tipos del juego): Android = `AudioTrack` float estéreo a la frecuencia nativa,
+  bloques de 10 ms, se pausa en `OnPause`; PC = cola de audio de SDL2, o `--audio-wav archivo.wav` para grabar
+  lo que suena (pruebas sin altavoces). Si la salida falla, se sigue con una salida muda a ritmo real.
+- Launcher: botón «Sonido: sí/no».
+- Rendimiento: NVorbis decodifica ~190x tiempo real en PC.
+

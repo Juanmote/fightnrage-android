@@ -24,7 +24,7 @@ Si algo falla, el registro está en `Android/data/com.juanmote.fightnrage/files/
 | Gráficos (OpenGL ES, shaders, efecto CRT) | ✅ probado en PC con el backend nuevo |
 | Mando (Android) / teclado | ✅ implementado, pendiente de probar en consola |
 | Partidas (compatibles con PC) | ✅ |
-| Sonido | ⏳ fase 2 |
+| Sonido (efectos y música con bucles) | ✅ probado en PC, pendiente de probar en consola |
 | Controles táctiles | ⏳ fase 3 |
 
 Detalles técnicos en [docs/ANALISIS.md](docs/ANALISIS.md).
@@ -35,3 +35,4 @@ Detalles técnicos en [docs/ANALISIS.md](docs/ANALISIS.md).
 - `src/FnrPort.Core` — backend: implementa las interfaces del motor del juego sobre OpenGL ES.
 - `src/FnrPort.Desktop` — host SDL2 para probar en PC (Linux/Windows): `FnrPort.Desktop <carpeta del juego>`.
 - `src/FnrPort.Android` — app de Android (launcher + actividad del juego).
+- `src/ThirdParty/NVorbis` — decodificador OGG Vorbis (NVorbis 0.10.5, MIT).

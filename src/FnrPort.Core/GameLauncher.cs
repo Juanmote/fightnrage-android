@@ -26,7 +26,8 @@ public static class GameLauncher
         public string SaveFile;         // ruta del data.sav (formato de PC, gzip)
         public int WindowScale;         // Constants.WINDOW_SCALE (resolución interna = 354x200 x escala)
         public bool Vsync = true;
-        public object Audio;            // IAudioEngine; null = sin sonido (se declara object para no cargar el exe antes de tiempo)
+        public object Audio;            // IAudioEngine propio (object para no cargar el exe antes de tiempo); tiene prioridad
+        public FnrPort.Audio.AudioOutput AudioOutput; // salida de la plataforma; null y sin Audio = sin sonido
         public string[] Args = Array.Empty<string>();
         public Action<object> ConfigureCore; // recibe el PortCore
     }
@@ -148,7 +149,8 @@ public static class GameLauncher
         BeatEmUpGame.Program.VSYNC = o.Vsync;
         BeatEmUpGame.Constants.WINDOW_SCALE = Math.Max(1, o.WindowScale);
 
-        var audio = (o.Audio as IAudioEngine) ?? new Empty_AudioImplementation.Empty_AudioEngine();
+        var audio = (o.Audio as IAudioEngine)
+            ?? (o.AudioOutput != null ? new FnrPort.Audio.PortAudioEngine(o.AudioOutput) : new Empty_AudioImplementation.Empty_AudioEngine());
         var core = new PortCore(host, audio);
         sCore = core;
         o.ConfigureCore?.Invoke(core);

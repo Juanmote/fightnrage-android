@@ -18,6 +18,7 @@ public class GameActivity : Activity, ISurfaceHolderCallback
     static AndroidHost sHost;
     static Thread sThread;
     static bool sRunning;
+    static AudioTrackOutput sAudio;
 
     protected override void OnCreate(Bundle savedInstanceState)
     {
@@ -51,8 +52,8 @@ public class GameActivity : Activity, ISurfaceHolderCallback
         if (hasFocus) HideSystemUi();
     }
 
-    protected override void OnPause() { base.OnPause(); sHost?.SetPaused(true); }
-    protected override void OnResume() { base.OnResume(); sHost?.SetPaused(false); HideSystemUi(); }
+    protected override void OnPause() { base.OnPause(); sHost?.SetPaused(true); sAudio?.SetPaused(true); }
+    protected override void OnResume() { base.OnResume(); sHost?.SetPaused(false); sAudio?.SetPaused(false); HideSystemUi(); }
 
     // ------------------------------------------------------------ superficie
 
@@ -105,6 +106,8 @@ public class GameActivity : Activity, ISurfaceHolderCallback
     void RunGame(string gameDir, string files, int scale)
     {
         sHost.OnPausedInGameThread = GameLauncher.StoreSave;
+        var cfg = Settings.Load(this);
+        sAudio = cfg.Sound ? new AudioTrackOutput() : null;
         GameLauncher.Run(sHost, new GameLauncher.Options
         {
             GameDir = gameDir,
@@ -112,7 +115,9 @@ public class GameActivity : Activity, ISurfaceHolderCallback
             SaveFile = Path.Combine(files, "savedata", "data.sav"),
             WindowScale = scale,
             Vsync = true,
+            AudioOutput = sAudio,
         });
+        sAudio = null;
     }
 
     // ------------------------------------------------------------ entrada
