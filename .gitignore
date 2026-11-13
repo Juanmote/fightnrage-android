@@ -1,0 +1,10 @@
+bin/
+obj/
+*.apk
+*.aab
+# Nunca subir archivos del juego
+game/
+data/
+*.exe
+*.dat
+FIGHT_N_RAGE*
