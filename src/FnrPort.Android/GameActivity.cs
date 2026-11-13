@@ -22,6 +22,8 @@ public class GameActivity : Activity, ISurfaceHolderCallback
     protected override void OnCreate(Bundle savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+        Log.Start(this);
+        Log.Write("[FnrPort] Abriendo GameActivity");
         Window.AddFlags(WindowManagerFlags.KeepScreenOn | WindowManagerFlags.Fullscreen);
         if (Build.VERSION.SdkInt >= BuildVersionCodes.P)
             Window.Attributes.LayoutInDisplayCutoutMode = LayoutInDisplayCutoutMode.ShortEdges;
@@ -75,9 +77,13 @@ public class GameActivity : Activity, ISurfaceHolderCallback
         {
             try
             {
+                Console.WriteLine($"[FnrPort] Hilo del juego. Carpeta: {gameDir}, escala x{scale}, runtime: {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}");
                 Facades.Install(this, Path.Combine(CacheDir.AbsolutePath, "facades"));
+                Console.WriteLine("[FnrPort] Fachadas listas");
                 GameLauncher.Prepare(gameDir, Path.Combine(CacheDir.AbsolutePath, "exe"));
+                Console.WriteLine("[FnrPort] Exe preparado, arrancando el juego");
                 RunGame(gameDir, files, scale);
+                Console.WriteLine("[FnrPort] El juego ha terminado con normalidad");
             }
             catch (Exception ex)
             {
@@ -86,7 +92,7 @@ public class GameActivity : Activity, ISurfaceHolderCallback
                 RunOnUiThread(() =>
                 {
                     new AlertDialog.Builder(this).SetTitle("Error")
-                        .SetMessage(ex.Message + "\n\nDetalles en Android/data/" + PackageName + "/files/log.txt")
+                        .SetMessage(ex.Message + "\n\nEn el launcher pulsa «Guardar registro en Descargas» y pásame el archivo.")
                         .SetPositiveButton("Cerrar", (s, e) => Finish()).SetCancelable(false).Show();
                 });
                 sRunning = false; sThread = null;

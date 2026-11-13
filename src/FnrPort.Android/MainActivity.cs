@@ -56,10 +56,15 @@ public class MainActivity : Activity
         mSave = AddButton(row, "Importar partida de PC", (s, e) => PickSave());
         mScale = AddButton(row, "", (s, e) => CycleScale());
         root.AddView(row);
+        var row2 = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+        row2.SetPadding(0, 16, 0, 0);
+        AddButton(row2, "Guardar registro en Descargas", (s, e) => ExportLog(false));
+        AddButton(row2, "Compartir registro", (s, e) => ExportLog(true));
+        root.AddView(row2);
 
         var help = new TextView(this) { TextSize = 12, Text =
             "Partida de PC (GOG): %USERPROFILE%\\AppData\\LocalLow\\sebagamesdev\\gog\\fightnrage\\savedata\\data.sav\n" +
-            "Registro para informar de fallos: Android/data/" + PackageName + "/files/log.txt\n" +
+            "Si algo falla: «Guardar registro en Descargas» y pásame ese archivo.\n" +
             "De momento: sin sonido y sin controles táctiles (usa mando o teclado)." };
         help.SetTextColor(Color.Gray);
         help.SetPadding(0, 24, 0, 0);
@@ -92,6 +97,37 @@ public class MainActivity : Activity
                 ? "Juego instalado. " + (File.Exists(SavePath) ? "Hay partida guardada." : "Sin partida guardada todavía.")
                 : "Juego no instalado: pulsa «Elegir carpeta del juego» y selecciona la carpeta de Fight'N Rage.";
         if (problem == null && !mBusy) mPlay.RequestFocus(); else mPick.RequestFocus();
+    }
+
+    void ExportLog(bool share)
+    {
+        mStatus.Text = "Preparando registro...";
+        Task.Run(() =>
+        {
+            try
+            {
+                string text = LogExport.Build(this);
+                if (!share)
+                {
+                    string where = LogExport.SaveToDownloads(this, text);
+                    RunOnUiThread(() => { mStatus.Text = "Registro guardado en " + where; Toast.MakeText(this, "Guardado en " + where, ToastLength.Long).Show(); });
+                }
+                else
+                {
+                    if (text.Length > 400_000) text = text.Substring(text.Length - 400_000);
+                    RunOnUiThread(() =>
+                    {
+                        var i = new Intent(Intent.ActionSend);
+                        i.SetType("text/plain");
+                        i.PutExtra(Intent.ExtraSubject, "Registro Fight'N Rage Android");
+                        i.PutExtra(Intent.ExtraText, text);
+                        StartActivity(Intent.CreateChooser(i, "Compartir registro"));
+                        Refresh();
+                    });
+                }
+            }
+            catch (Exception ex) { RunOnUiThread(() => mStatus.Text = "No se pudo exportar el registro: " + ex.Message); }
+        });
     }
 
     void CycleScale()
