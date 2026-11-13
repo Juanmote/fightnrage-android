@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>FnrPort.Desktop</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- el exe del juego es x86: no forzar plataforma -->
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FnrPort.Core\FnrPort.Core.csproj" />
+    <ProjectReference Include="..\FnrStub\FnrStub.csproj" Private="false" />
+  </ItemGroup>
+</Project>

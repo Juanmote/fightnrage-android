@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>FnrPort</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Solo para compilar: en ejecución se usa el exe del usuario, por eso no se copia (Private=false). -->
+    <ProjectReference Include="..\FnrStub\FnrStub.csproj" Private="false" />
+  </ItemGroup>
+</Project>
