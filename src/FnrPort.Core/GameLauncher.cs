@@ -16,7 +16,7 @@ public static class GameLauncher
     public const string ExeName = "FIGHT_N_RAGE.exe";
     static string sExePath;
     static string sSavePath;
-    static PortCore sCore;
+    static object sCore; // PortCore (object para no cargar el exe al tocar esta clase)
     static bool sResolverInstalled;
 
     public sealed class Options
@@ -124,10 +124,11 @@ public static class GameLauncher
         BeatEmUpGame.Constants.WINDOW_SCALE = Math.Max(1, o.WindowScale);
 
         var audio = (o.Audio as IAudioEngine) ?? new Empty_AudioImplementation.Empty_AudioEngine();
-        sCore = new PortCore(host, audio);
-        o.ConfigureCore?.Invoke(sCore);
+        var core = new PortCore(host, audio);
+        sCore = core;
+        o.ConfigureCore?.Invoke(core);
         string save = LoadSave();
-        int r = BeatEmUpGame.Program.Run(sCore, ExternalCall, save, o.Args);
+        int r = BeatEmUpGame.Program.Run(core, ExternalCall, save, o.Args);
         StoreSave();
         return r;
     }

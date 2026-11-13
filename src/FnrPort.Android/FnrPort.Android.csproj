@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>24</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>FnrPort.Droid</RootNamespace>
+    <AssemblyName>FnrPort.Android</AssemblyName>
+    <ApplicationId>com.juanmote.fightnrage</ApplicationId>
+    <ApplicationTitle>Fight'N Rage</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <!-- El juego se carga en ejecución: nada de recortar el framework ni AOT completo. -->
+    <AndroidLinkMode>None</AndroidLinkMode>
+    <PublishTrimmed>false</PublishTrimmed>
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+    <AndroidUseAssemblyStore>false</AndroidUseAssemblyStore>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FnrPort.Core\FnrPort.Core.csproj" />
+    <ProjectReference Include="..\FnrStub\FnrStub.csproj" Private="false" />
+  </ItemGroup>
+
+  <!-- Fachadas de .NET Framework (mscorlib, System...) que necesita el exe del juego.
+       El workflow las copia aquí desde el runtime de Android antes de compilar. -->
+  <ItemGroup>
+    <AndroidAsset Include="Assets\facades\*.dll" LogicalName="facades\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Seguridad: el ensamblado de referencia FIGHT_N_RAGE nunca debe ir en la APK. -->
+  <Target Name="FnrQuitarStub" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)' == 'FIGHT_N_RAGE'" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -1,0 +1,128 @@
+using System;
+using System.IO;
+using System.Threading;
+using Android.App;
+using Android.Content.PM;
+using Android.OS;
+using Android.Runtime;
+using Android.Views;
+
+namespace FnrPort.Droid;
+
+[Activity(Label = "Fight'N Rage", Theme = "@android:style/Theme.Black.NoTitleBar.Fullscreen",
+    ScreenOrientation = ScreenOrientation.SensorLandscape, LaunchMode = LaunchMode.SingleTask,
+    ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.Keyboard |
+        ConfigChanges.KeyboardHidden | ConfigChanges.Navigation | ConfigChanges.ScreenLayout | ConfigChanges.UiMode | ConfigChanges.Density)]
+public class GameActivity : Activity, ISurfaceHolderCallback
+{
+    static AndroidHost sHost;
+    static Thread sThread;
+    static bool sRunning;
+
+    protected override void OnCreate(Bundle savedInstanceState)
+    {
+        base.OnCreate(savedInstanceState);
+        Window.AddFlags(WindowManagerFlags.KeepScreenOn | WindowManagerFlags.Fullscreen);
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.P)
+            Window.Attributes.LayoutInDisplayCutoutMode = LayoutInDisplayCutoutMode.ShortEdges;
+        var view = new SurfaceView(this);
+        view.Holder.AddCallback(this);
+        view.Focusable = true; view.FocusableInTouchMode = true;
+        SetContentView(view);
+        view.RequestFocus();
+        HideSystemUi();
+        if (sHost == null) sHost = new AndroidHost();
+        try { sHost.RefreshRate = Display?.RefreshRate ?? 60; } catch { }
+    }
+
+    void HideSystemUi()
+    {
+#pragma warning disable CA1422
+        Window.DecorView.SystemUiVisibility = (StatusBarVisibility)(SystemUiFlags.Fullscreen | SystemUiFlags.HideNavigation |
+            SystemUiFlags.ImmersiveSticky | SystemUiFlags.LayoutFullscreen | SystemUiFlags.LayoutHideNavigation | SystemUiFlags.LayoutStable);
+#pragma warning restore CA1422
+    }
+
+    public override void OnWindowFocusChanged(bool hasFocus)
+    {
+        base.OnWindowFocusChanged(hasFocus);
+        if (hasFocus) HideSystemUi();
+    }
+
+    protected override void OnPause() { base.OnPause(); sHost?.SetPaused(true); }
+    protected override void OnResume() { base.OnResume(); sHost?.SetPaused(false); HideSystemUi(); }
+
+    // ------------------------------------------------------------ superficie
+
+    public void SurfaceCreated(ISurfaceHolder holder)
+    {
+        sHost.SetSurface(holder.Surface);
+        if (sThread == null) StartGame();
+    }
+
+    public void SurfaceChanged(ISurfaceHolder holder, [GeneratedEnum] Android.Graphics.Format format, int width, int height) { }
+
+    public void SurfaceDestroyed(ISurfaceHolder holder) => sHost.ReleaseSurface(sRunning);
+
+    void StartGame()
+    {
+        var files = GetExternalFilesDir(null).AbsolutePath;
+        var cfg = Settings.Load(this);
+        string gameDir = Path.Combine(files, "game");
+        int scale = cfg.Scale > 0 ? cfg.Scale : Settings.AutoScale(this);
+        sRunning = true;
+        sThread = new Thread(() =>
+        {
+            try
+            {
+                Facades.Install(this, Path.Combine(CacheDir.AbsolutePath, "facades"));
+                GameLauncher.Prepare(gameDir, Path.Combine(CacheDir.AbsolutePath, "exe"));
+                RunGame(gameDir, files, scale);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[FnrPort] ERROR: " + ex);
+                Log.Write("ERROR: " + ex);
+                RunOnUiThread(() =>
+                {
+                    new AlertDialog.Builder(this).SetTitle("Error")
+                        .SetMessage(ex.Message + "\n\nDetalles en Android/data/" + PackageName + "/files/log.txt")
+                        .SetPositiveButton("Cerrar", (s, e) => Finish()).SetCancelable(false).Show();
+                });
+                sRunning = false; sThread = null;
+                return;
+            }
+            sRunning = false; sThread = null; sHost = null;
+            RunOnUiThread(Finish);
+        }, 64 * 1024 * 1024) { Name = "FnrGame" };
+        sThread.Start();
+    }
+
+    void RunGame(string gameDir, string files, int scale)
+    {
+        sHost.OnPausedInGameThread = GameLauncher.StoreSave;
+        GameLauncher.Run(sHost, new GameLauncher.Options
+        {
+            GameDir = gameDir,
+            CacheDir = Path.Combine(CacheDir.AbsolutePath, "exe"),
+            SaveFile = Path.Combine(files, "savedata", "data.sav"),
+            WindowScale = scale,
+            Vsync = true,
+        });
+    }
+
+    // ------------------------------------------------------------ entrada
+
+    public override bool DispatchKeyEvent(KeyEvent e)
+    {
+        if (sHost == null) return base.DispatchKeyEvent(e);
+        if (InputMapper.HandleKey(sHost, e)) return true;
+        return base.DispatchKeyEvent(e);
+    }
+
+    public override bool DispatchGenericMotionEvent(MotionEvent e)
+    {
+        if (sHost != null && InputMapper.HandleMotion(sHost, e)) return true;
+        return base.DispatchGenericMotionEvent(e);
+    }
+}

@@ -1,0 +1,72 @@
+name: Compilar APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar workload de Android
+        run: dotnet workload install android
+
+      - name: Comprobar que el backend compila (escritorio)
+        run: dotnet build src/FnrPort.Desktop -c Release
+
+      - name: Restaurar
+        run: dotnet restore src/FnrPort.Android -r android-arm64
+
+      - name: Copiar fachadas de .NET Framework (mscorlib, System...) como assets
+        run: |
+          set -e
+          dir=$(find "$HOME/.nuget/packages" "$DOTNET_ROOT/packs" -ipath "*runtime.mono.android-arm64*" -name mscorlib.dll 2>/dev/null | grep "/net8.0/" | head -1 | xargs dirname)
+          echo "Runtime pack: $dir"
+          test -n "$dir"
+          for f in mscorlib System System.Core System.Xml System.Drawing System.Data System.Numerics System.Runtime.Serialization System.Xml.Linq netstandard; do
+            if [ -f "$dir/$f.dll" ]; then cp "$dir/$f.dll" src/FnrPort.Android/Assets/facades/; fi
+          done
+          ls -la src/FnrPort.Android/Assets/facades/
+
+      - name: Compilar APK
+        env:
+          FNR_KEYSTORE_B64: ${{ secrets.FNR_KEYSTORE_B64 }}
+          FNR_KEYSTORE_PASS: ${{ secrets.FNR_KEYSTORE_PASS }}
+        run: |
+          set -e
+          extra=""
+          # Firma propia opcional (secretos del repo). Sin ellos se firma con la clave de depuración.
+          if [ -n "$FNR_KEYSTORE_B64" ] && [ -n "$FNR_KEYSTORE_PASS" ]; then
+            echo "$FNR_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/fnr.keystore"
+            extra="-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=$RUNNER_TEMP/fnr.keystore -p:AndroidSigningKeyAlias=fnr -p:AndroidSigningKeyPass=env:FNR_KEYSTORE_PASS -p:AndroidSigningStorePass=env:FNR_KEYSTORE_PASS"
+          fi
+          dotnet build src/FnrPort.Android -c Release -r android-arm64 --no-restore $extra
+
+      - name: Revisar la APK
+        run: |
+          set -e
+          apk=$(find src/FnrPort.Android/bin/Release -name "*-Signed.apk" | head -1)
+          echo "APK: $apk"
+          unzip -l "$apk" > contenido.txt
+          grep -i "facades/" contenido.txt
+          if grep -i "FIGHT_N_RAGE" contenido.txt; then echo "ERROR: el ensamblado de referencia se ha colado en la APK"; exit 1; fi
+          grep -c "\.dll" contenido.txt
+          mkdir -p salida
+          cp "$apk" "salida/FightNRage-Android-$(git rev-parse --short HEAD).apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FightNRage-Android
+          path: salida/*.apk

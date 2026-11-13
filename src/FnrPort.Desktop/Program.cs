@@ -93,7 +93,10 @@ public static class Program
                 core.AfterRender += _ => Renderer.DrawCalls = 0;
             }
         };
-        return GameLauncher.Run(host, opts);
+        int rc = GameLauncher.Run(host, opts);
+        if (Environment.GetEnvironmentVariable("FNR_LIST_ASSEMBLIES") == "1")
+            foreach (var a in AppDomain.CurrentDomain.GetAssemblies()) Console.WriteLine("[asm] " + a.GetName().Name + " | " + a.Location);
+        return rc;
     }
 
     static IntPtr ResolveNative(string name, Assembly asm, DllImportSearchPath? path)
