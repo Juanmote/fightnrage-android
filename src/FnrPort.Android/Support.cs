@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using Android.App;
 using Android.Content;
 
 namespace FnrPort.Droid;
@@ -17,6 +18,7 @@ static class Facades
 
     public static void Install(Context ctx, string dir)
     {
+        if (sDir != null) return;
         Anchor.Touch();
         sDir = dir;
         Directory.CreateDirectory(dir);
@@ -39,10 +41,33 @@ static class Facades
                 Console.WriteLine("[FnrPort] Cargando fachada " + n);
                 return Assembly.LoadFrom(p);
             }
-            if (n == "FIGHT_N_RAGE") return null; // lo resuelve GameLauncher
+            if (n == "FIGHT_N_RAGE" || n.EndsWith(".resources")) return null; // FIGHT_N_RAGE lo resuelve GameLauncher
             Console.WriteLine("[FnrPort] Ensamblado no encontrado: " + e.Name);
             return null;
         };
+    }
+}
+
+/// <summary>
+/// Arranque del proceso: registro, fachadas y resolvedor del exe ANTES de abrir cualquier pantalla.
+/// </summary>
+[Application(Label = "Fight'N Rage")]
+public class FnrApplication : Application
+{
+    public FnrApplication(IntPtr handle, Android.Runtime.JniHandleOwnership transfer) : base(handle, transfer) { }
+
+    public override void OnCreate()
+    {
+        base.OnCreate();
+        Log.Start(this);
+        try
+        {
+            Facades.Install(this, Path.Combine(CacheDir.AbsolutePath, "facades"));
+            string files = GetExternalFilesDir(null).AbsolutePath;
+            GameLauncher.InstallLazyResolver(Path.Combine(files, "game"), Path.Combine(CacheDir.AbsolutePath, "exe"));
+            Console.WriteLine("[FnrPort] Aplicación iniciada (fachadas y resolvedor listos)");
+        }
+        catch (Exception ex) { Log.Write("Error al iniciar: " + ex); }
     }
 }
 

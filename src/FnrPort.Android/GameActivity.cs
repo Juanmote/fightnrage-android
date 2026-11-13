@@ -78,9 +78,7 @@ public class GameActivity : Activity, ISurfaceHolderCallback
             try
             {
                 Console.WriteLine($"[FnrPort] Hilo del juego. Carpeta: {gameDir}, escala x{scale}, runtime: {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}");
-                Facades.Install(this, Path.Combine(CacheDir.AbsolutePath, "facades"));
-                Console.WriteLine("[FnrPort] Fachadas listas");
-                GameLauncher.Prepare(gameDir, Path.Combine(CacheDir.AbsolutePath, "exe"));
+                if (GameLauncher.PreparedExePath == null) GameLauncher.Prepare(gameDir, Path.Combine(CacheDir.AbsolutePath, "exe"));
                 Console.WriteLine("[FnrPort] Exe preparado, arrancando el juego");
                 RunGame(gameDir, files, scale);
                 Console.WriteLine("[FnrPort] El juego ha terminado con normalidad");

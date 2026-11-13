@@ -105,6 +105,31 @@ public static class GameLauncher
         InstallResolver(PrepareExe(gameDir, cacheDir));
     }
 
+    /// <summary>
+    /// Instala el resolvedor desde el arranque del proceso, sin preparar todavía el exe: se prepara
+    /// la primera vez que alguien pide "FIGHT_N_RAGE". En Android (Mono) hace falta porque el runtime
+    /// carga los tipos del juego en cuanto se crea cualquier clase que los use.
+    /// </summary>
+    public static void InstallLazyResolver(string gameDir, string cacheDir)
+    {
+        if (sResolverInstalled) return;
+        sResolverInstalled = true;
+        AppDomain.CurrentDomain.AssemblyResolve += (s, e) =>
+        {
+            if (new AssemblyName(e.Name).Name != "FIGHT_N_RAGE") return null;
+            if (sExePath == null)
+            {
+                string problem = Validate(gameDir);
+                if (problem != null) throw new FileNotFoundException(problem);
+                sExePath = PrepareExe(gameDir, cacheDir);
+            }
+            Console.WriteLine("[FnrPort] Cargando " + sExePath);
+            return Assembly.LoadFrom(sExePath);
+        };
+    }
+
+    public static string PreparedExePath => sExePath;
+
     /// <summary>Paso 2: arranca el juego. Bloquea hasta que se cierra.</summary>
     public static int Run(IPortHost host, Options o)
     {
