@@ -20,6 +20,15 @@ public interface IPortHost
     string OsDescription { get; }
 }
 
+/// <summary>Cómo se coloca la imagen del juego en la pantalla (opciones de vídeo).</summary>
+public static class ScreenSettings
+{
+    /// <summary>true = FULL SCREEN del juego (estira a toda la pantalla); false = WINDOW (sin deformar, con bandas).</summary>
+    public static volatile bool Stretch = true;
+    /// <summary>0 = 16:9 original, 1 = 4:3, 2 = 8:7 (recortando los laterales).</summary>
+    public static volatile int Format;
+}
+
 /// <summary>ICoreEngine: réplica del bucle de OTKCore (paso fijo con salto de frames).</summary>
 public class PortCore : ICoreEngine
 {
@@ -154,33 +163,22 @@ public class PortCore : ICoreEngine
         mBackBuffer.Smoothing = true;
         mBackBuffer.SetSize(ww, wh);
         var t = Transformation.Default;
-        bool integer = mDesc.IntegerScale;
         float mw = main.Width, mh = main.Height;
-        var scale = new Vector2D(ww / mw, wh / mh);
-        switch (mDesc.ScaleMode)
-        {
-            case AppDescriptor.SCALE_MODE.NO_SCALE:
-                scale = Vector2D.One; t.Position = new Vector2D(main.Width / 2, main.Height / 2); break;
-            case AppDescriptor.SCALE_MODE.FULL:
-                t.Position = new Vector2D(ww / 2, wh / 2); break;
-            default: // KEEP_ASPECT_RATIO / KEEP_PIXEL_ASPECT
-                float s = Math.Min(scale.X, scale.Y);
-                scale = new Vector2D(s, s);
-                if (mDesc.ScaleMode == AppDescriptor.SCALE_MODE.KEEP_PIXEL_ASPECT) integer = true;
-                t.Position = new Vector2D(ww / 2, wh / 2); break;
-        }
-        if (integer)
-        {
-            int ix = (int)scale.X;
-            if (ix > 0 && ix <= scale.Y) scale = new Vector2D((int)scale.X, (int)scale.Y);
-        }
+        // Formato: recorta los laterales para 4:3 u 8:7 (el juego siempre dibuja 354x200).
+        float cw = ScreenSettings.Format switch { 1 => mh * 4f / 3f, 2 => mh * 8f / 7f, _ => mw };
+        int sw = Math.Max(1, (int)Math.Round(Math.Min(mw, cw))), sx = (int)Math.Round((mw - sw) / 2f);
+        var src = new Rectangle(sx, 0, sw, (int)mh);
+        Vector2D scale;
+        if (ScreenSettings.Stretch) scale = new Vector2D(ww / (float)sw, wh / mh);   // FULL SCREEN: ocupa toda la pantalla
+        else { float s = Math.Min(ww / (float)sw, wh / mh); scale = new Vector2D(s, s); } // WINDOW: sin deformar
+        t.Position = new Vector2D(ww / 2f, wh / 2f);
         t.Scale = scale;
         mBackBuffer.Color = new Color(255, 255, 255, 255);
         mBackBuffer.ClipRect = new Rectangle(0, 0, ww, wh);
-        if (ww > mw * scale.X || wh > mh * scale.Y) mBackBuffer.Clear(new Color(0, 0, 0, 255));
+        if (ww > sw * scale.X + 0.5f || wh > mh * scale.Y + 0.5f) mBackBuffer.Clear(new Color(0, 0, 0, 255));
         mBackBuffer.Smoothing = mDesc.SmoothScale;
         mBackBuffer.BlendMode = BLEND_MODE.NORMAL;
-        mBackBuffer.Draw(main.GetBitmap(), main.FullRect, t, new Vector2D(mDesc.MainSurfaceWidth / 2, mDesc.MainSurfaceHeight / 2));
+        mBackBuffer.Draw(main.GetBitmap(), src, t, new Vector2D(sw / 2f, mh / 2f));
         Renderer.Flush();
         AfterRender?.Invoke(this);
         mHost.SwapBuffers();

@@ -6,7 +6,7 @@ namespace FnrPort.Droid;
 /// <summary>Traduce eventos de Android (mandos y teclado físico) al formato del port.</summary>
 static class InputMapper
 {
-    static bool IsPad(InputEvent e)
+    internal static bool IsPad(InputEvent e)
     {
         var src = e.Source;
         if ((src & InputSourceType.Gamepad) == InputSourceType.Gamepad) return true;

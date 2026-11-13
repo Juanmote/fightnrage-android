@@ -26,6 +26,7 @@ public static class GameLauncher
         public string SaveFile;         // ruta del data.sav (formato de PC, gzip)
         public int WindowScale;         // Constants.WINDOW_SCALE (resolución interna = 354x200 x escala)
         public bool Vsync = true;
+        public int ScreenFormat;        // 0 = 16:9, 1 = 4:3, 2 = 8:7 (recorte de laterales)
         public object Audio;            // IAudioEngine propio (object para no cargar el exe antes de tiempo); tiene prioridad
         public FnrPort.Audio.AudioOutput AudioOutput; // salida de la plataforma; null y sin Audio = sin sonido
         public string[] Args = Array.Empty<string>();
@@ -42,7 +43,7 @@ public static class GameLauncher
 
     /// <summary>
     /// Copia el exe quitando la marca "solo 32 bits" de la cabecera .NET (como "corflags /32BIT-").
-    /// Sin esto los runtimes de 64 bits se niegan a cargarlo. No se toca nada más.
+    /// Sin esto los runtimes de 64 bits se niegan a cargarlo. Además aplica los parches de ExePatcher.
     /// </summary>
     public static string PrepareExe(string gameDir, string cacheDir)
     {
@@ -68,6 +69,7 @@ public static class GameLauncher
         flags &= ~0x2u;      // COMIMAGE_FLAGS_32BITREQUIRED
         flags &= ~0x20000u;  // COMIMAGE_FLAGS_32BITPREFERRED
         BitConverter.GetBytes(flags).CopyTo(d, off + 16);
+        ExePatcher.Apply(d);
         if (!File.Exists(dst) || !SameBytes(dst, d)) File.WriteAllBytes(dst, d);
         return dst;
     }
@@ -148,6 +150,7 @@ public static class GameLauncher
         BeatEmUpGame.Program.STEAM_VERSION = true;   // lo mismo que hace el launcher de GOG
         BeatEmUpGame.Program.VSYNC = o.Vsync;
         BeatEmUpGame.Constants.WINDOW_SCALE = Math.Max(1, o.WindowScale);
+        ScreenSettings.Format = o.ScreenFormat;
 
         var audio = (o.Audio as IAudioEngine)
             ?? (o.AudioOutput != null ? new FnrPort.Audio.PortAudioEngine(o.AudioOutput) : new Empty_AudioImplementation.Empty_AudioEngine());
@@ -173,7 +176,9 @@ public static class GameLauncher
             }
             if (obj is int i)
             {
-                // 0/1/2/3: pantalla completa / ventana -> en Android siempre pantalla completa.
+                // 0 = SCREEN_MODE_FULLSCREEN, 1 = SCREEN_MODE_WINDOW (opciones de vídeo del juego).
+                // En el port: pantalla completa = la imagen ocupa toda la pantalla; ventana = sin deformar.
+                if (i == 0 || i == 1) { ScreenSettings.Stretch = i == 0; Console.WriteLine("[FnrPort] Modo de imagen: " + (i == 0 ? "pantalla completa" : "ventana (sin deformar)")); }
                 if (i == 4) StoreSave();
                 return null;
             }

@@ -68,6 +68,7 @@ jobs:
           echo "APK: $apk"
           unzip -l "$apk" > contenido.txt
           grep -i "facades/" contenido.txt
+          grep -i "fonts/" contenido.txt || echo "AVISO: no van las fuentes del launcher"
           if grep -i "FIGHT_N_RAGE" contenido.txt; then echo "ERROR: el ensamblado de referencia se ha colado en la APK"; exit 1; fi
           grep -c "\.dll" contenido.txt
           mkdir -p salida

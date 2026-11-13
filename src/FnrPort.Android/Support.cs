@@ -100,18 +100,30 @@ sealed class Settings
 {
     public int Scale; // 0 = automático
     public bool Sound = true;
+    public int Format;            // 0 = 16:9, 1 = 4:3, 2 = 8:7 (recortando laterales)
+    public bool TouchAuto = true; // controles táctiles automáticos (sin mando físico)
+    public int TouchAlpha = 45;   // opacidad de los botones táctiles (%)
+    public int TouchSize = 100;   // tamaño de los botones táctiles (%)
 
     public static Settings Load(Context ctx)
     {
         var p = ctx.GetSharedPreferences("fnr", FileCreationMode.Private);
-        return new Settings { Scale = p.GetInt("scale", 0), Sound = p.GetBoolean("sound", true) };
+        return new Settings
+        {
+            Scale = p.GetInt("scale", 0), Sound = p.GetBoolean("sound", true), Format = p.GetInt("format", 0),
+            TouchAuto = p.GetBoolean("touch_auto", true), TouchAlpha = p.GetInt("touch_alpha", 45), TouchSize = p.GetInt("touch_size", 100),
+        };
     }
 
     public void Save(Context ctx)
     {
         var p = ctx.GetSharedPreferences("fnr", FileCreationMode.Private).Edit();
-        p.PutInt("scale", Scale); p.PutBoolean("sound", Sound); p.Apply();
+        p.PutInt("scale", Scale); p.PutBoolean("sound", Sound); p.PutInt("format", Format);
+        p.PutBoolean("touch_auto", TouchAuto); p.PutInt("touch_alpha", TouchAlpha); p.PutInt("touch_size", TouchSize);
+        p.Apply();
     }
+
+    public static readonly string[] FormatNames = { "16:9 (original)", "4:3 (recorta los laterales)", "8:7 (recorta los laterales)" };
 
     /// <summary>Resolución interna = 354x200 x escala. Igual que el PC pero tope 4 por rendimiento.</summary>
     public static int AutoScale(Context ctx)

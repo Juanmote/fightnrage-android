@@ -15,15 +15,17 @@ using Android.Widget;
 namespace FnrPort.Droid;
 
 /// <summary>Launcher: copia los archivos de tu juego (GOG/Steam) al almacenamiento de la app y lo arranca.</summary>
-[Activity(Label = "Fight'N Rage", MainLauncher = true, Theme = "@android:style/Theme.Material.NoActionBar",
+[Activity(Label = "Fight'N Rage", MainLauncher = true, Theme = "@android:style/Theme.Black.NoTitleBar.Fullscreen",
+    Icon = "@mipmap/ic_launcher", RoundIcon = "@mipmap/ic_launcher",
     ScreenOrientation = ScreenOrientation.SensorLandscape, ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize)]
-public class MainActivity : Activity
+public partial class MainActivity : Activity
 {
     const int ReqFolder = 1, ReqSave = 2;
     TextView mStatus;
-    Button mPlay, mPick, mSave, mScale, mSound;
     Settings mCfg;
     bool mBusy;
+    LinearLayout mRoot;
+    LauncherTheme T;
 
     string FilesDir_ => GetExternalFilesDir(null).AbsolutePath;
     string GameDir => System.IO.Path.Combine(FilesDir_, "game");
@@ -34,72 +36,69 @@ public class MainActivity : Activity
         base.OnCreate(savedInstanceState);
         Log.Start(this);
         mCfg = Settings.Load(this);
-
-        var root = new LinearLayout(this) { Orientation = Orientation.Vertical };
-        root.SetPadding(48, 32, 48, 32);
-        root.SetBackgroundColor(Color.Rgb(20, 12, 12));
-        var title = new TextView(this) { Text = "FIGHT'N RAGE", TextSize = 30 };
-        title.SetTextColor(Color.Rgb(255, 170, 40));
-        title.SetTypeface(Typeface.DefaultBold, TypefaceStyle.Bold);
-        root.AddView(title);
-        var sub = new TextView(this) { Text = "Launcher no oficial para Android. Necesitas tu copia del juego de PC (GOG o Steam): la carpeta que contiene FIGHT_N_RAGE.exe y data.", TextSize = 14 };
-        sub.SetTextColor(Color.LightGray);
-        root.AddView(sub);
-        mStatus = new TextView(this) { TextSize = 15 };
-        mStatus.SetTextColor(Color.White);
-        mStatus.SetPadding(0, 24, 0, 24);
-        root.AddView(mStatus);
-
-        var row = new LinearLayout(this) { Orientation = Orientation.Horizontal };
-        mPlay = AddButton(row, "▶ JUGAR", (s, e) => Play());
-        mPick = AddButton(row, "Elegir carpeta del juego", (s, e) => PickFolder());
-        mSave = AddButton(row, "Importar partida de PC", (s, e) => PickSave());
-        mScale = AddButton(row, "", (s, e) => CycleScale());
-        root.AddView(row);
-        var row2 = new LinearLayout(this) { Orientation = Orientation.Horizontal };
-        row2.SetPadding(0, 16, 0, 0);
-        mSound = AddButton(row2, "", (s, e) => { mCfg.Sound = !mCfg.Sound; mCfg.Save(this); Refresh(); });
-        AddButton(row2, "Guardar registro en Descargas", (s, e) => ExportLog(false));
-        AddButton(row2, "Compartir registro", (s, e) => ExportLog(true));
-        root.AddView(row2);
-
-        var help = new TextView(this) { TextSize = 12, Text =
-            "Partida de PC (GOG): %USERPROFILE%\\AppData\\LocalLow\\sebagamesdev\\gog\\fightnrage\\savedata\\data.sav\n" +
-            "Si algo falla: «Guardar registro en Descargas» y pásame ese archivo.\n" +
-            "De momento: sin sonido y sin controles táctiles (usa mando o teclado)." };
-        help.SetTextColor(Color.Gray);
-        help.SetPadding(0, 24, 0, 0);
-        root.AddView(help);
-
-        var scroll = new ScrollView(this);
-        scroll.AddView(root);
-        SetContentView(scroll);
+        T = new LauncherTheme(this);
+        Window.AddFlags(WindowManagerFlags.Fullscreen);
+        SetContentView(T.BuildFrame(out mRoot));
         Refresh();
     }
 
-    Button AddButton(LinearLayout row, string text, EventHandler click)
-    {
-        var b = new Button(this) { Text = text };
-        b.Click += click;
-        var lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f);
-        lp.SetMargins(0, 0, 16, 0);
-        row.AddView(b, lp);
-        return b;
-    }
-
+    /// <summary>Reconstruye la pantalla (conservando el elemento con el foco del mando).</summary>
     void Refresh()
     {
-        string problem = GameLauncher.Validate(GameDir);
-        mPlay.Enabled = problem == null && !mBusy;
-        mPick.Enabled = mSave.Enabled = mScale.Enabled = !mBusy;
-        mSound.Text = "Sonido: " + (mCfg.Sound ? "sí" : "no");
-        mScale.Text = "Resolución: " + (mCfg.Scale == 0 ? $"auto (x{Settings.AutoScale(this)})" : "x" + mCfg.Scale);
-        if (!mBusy)
-            mStatus.Text = problem == null
-                ? "Juego instalado. " + (File.Exists(SavePath) ? "Hay partida guardada." : "Sin partida guardada todavía.")
-                : "Juego no instalado: pulsa «Elegir carpeta del juego» y selecciona la carpeta de Fight'N Rage.";
-        if (problem == null && !mBusy) mPlay.RequestFocus(); else mPick.RequestFocus();
+        int focusIdx = -1;
+        var f = mRoot.FindFocus();
+        if (f != null) focusIdx = mRoot.GetFocusables(FocusSearchDirection.Down).IndexOf(f);
+        mRoot.RemoveAllViews();
+        Build();
+        var l = mRoot.GetFocusables(FocusSearchDirection.Down);
+        if (focusIdx >= 0 && l.Count > 0) l[Math.Min(focusIdx, l.Count - 1)].RequestFocus();
+        else if (l.Count > 0) l[0].RequestFocus();
     }
+
+    void Build()
+    {
+        T.Header(mRoot);
+        string problem = GameLauncher.Validate(GameDir);
+
+        var game = T.Card(mRoot, "Juego");
+        mStatus = T.Text(problem == null
+            ? "Juego instalado. " + (File.Exists(SavePath) ? "Hay partida guardada." : "Sin partida guardada todavía.")
+            : "Juego no instalado: pulsa «Elegir carpeta del juego» y selecciona la carpeta de Fight'N Rage (GOG o Steam), la que tiene FIGHT_N_RAGE.exe y data.",
+            15, problem == null ? LauncherTheme.OK : LauncherTheme.WARN);
+        game.AddView(mStatus);
+        if (problem == null && !mBusy) game.AddView(T.Button("▶  JUGAR", true, Play));
+        game.AddView(T.Button("Elegir carpeta del juego", false, PickFolder, !mBusy));
+        game.AddView(T.Button("Importar partida de PC (data.sav)", false, PickSave, !mBusy));
+
+        var video = T.Card(mRoot, "Imagen y sonido");
+        video.AddView(T.Button("Resolución: " + (mCfg.Scale == 0 ? $"auto (x{Settings.AutoScale(this)})" : "x" + mCfg.Scale), false,
+            () => { mCfg.Scale = (mCfg.Scale + 1) % 5; mCfg.Save(this); Refresh(); }));
+        video.AddView(T.Button("Formato: " + Settings.FormatNames[mCfg.Format], false,
+            () => { mCfg.Format = (mCfg.Format + 1) % 3; mCfg.Save(this); Refresh(); }));
+        video.AddView(T.Text("En el juego, Options → Video: «Full Screen» estira la imagen a toda la pantalla y «Windowed» la deja sin deformar (con bandas negras si hace falta). " +
+            "4:3 y 8:7 recortan los laterales: se pierde un poco del marcador de los lados.", 13, LauncherTheme.MUTED));
+        video.AddView(T.Button("Sonido: " + (mCfg.Sound ? "sí" : "no"), false, () => { mCfg.Sound = !mCfg.Sound; mCfg.Save(this); Refresh(); }));
+
+        var ctl = T.Card(mRoot, "Controles");
+        ctl.AddView(T.Button("Controles táctiles: " + (mCfg.TouchAuto ? "AUTOMÁTICO" : "DESACTIVADOS"), false,
+            () => { mCfg.TouchAuto = !mCfg.TouchAuto; mCfg.Save(this); Refresh(); }));
+        ctl.AddView(T.Text("Automático: salen cuando no hay mando físico y desaparecen en cuanto usas uno. Si tocas la pantalla, vuelven.", 13, LauncherTheme.MUTED));
+        ctl.AddView(T.Button($"Opacidad de los botones: {mCfg.TouchAlpha} %", false,
+            () => { mCfg.TouchAlpha = mCfg.TouchAlpha >= 90 ? 15 : mCfg.TouchAlpha + 15; mCfg.Save(this); Refresh(); }));
+        ctl.AddView(T.Button($"Tamaño de los botones: {mCfg.TouchSize} %", false,
+            () => { mCfg.TouchSize = mCfg.TouchSize >= 140 ? 70 : mCfg.TouchSize + 10; mCfg.Save(this); Refresh(); }));
+
+        BuildNetCard();
+
+        var help = T.Card(mRoot, "Ayuda");
+        help.AddView(T.Text("Partida de PC (GOG): %USERPROFILE%\\AppData\\LocalLow\\sebagamesdev\\gog\\fightnrage\\savedata\\data.sav\n" +
+            "Si algo falla: «Guardar registro en Descargas» y pásame ese archivo.", 13, LauncherTheme.MUTED));
+        help.AddView(T.Button("Guardar registro en Descargas", false, () => ExportLog(false)));
+        help.AddView(T.Button("Compartir registro", false, () => ExportLog(true)));
+    }
+
+    partial void BuildNetCardImpl(ref bool done);
+    void BuildNetCard() { bool done = false; BuildNetCardImpl(ref done); }
 
     void ExportLog(bool share)
     {
@@ -130,13 +129,6 @@ public class MainActivity : Activity
             }
             catch (Exception ex) { RunOnUiThread(() => mStatus.Text = "No se pudo exportar el registro: " + ex.Message); }
         });
-    }
-
-    void CycleScale()
-    {
-        mCfg.Scale = (mCfg.Scale + 1) % 5; // 0=auto,1..4
-        mCfg.Save(this);
-        Refresh();
     }
 
     void Play() => StartActivity(new Intent(this, typeof(GameActivity)));
@@ -219,7 +211,7 @@ public class MainActivity : Activity
                 foreach (var f in dataFiles)
                 {
                     CopyDoc(tree, f.DocId, System.IO.Path.Combine(tmp, "data", f.Name));
-                    if (++done % 25 == 0) { int d = done; RunOnUiThread(() => mStatus.Text = $"Copiando archivos del juego... {d}/{total}"); }
+                    if (++done % 25 == 0) { int d = done; RunOnUiThread(() => { if (mStatus != null) mStatus.Text = $"Copiando archivos del juego... {d}/{total}"; }); }
                 }
                 string problem = GameLauncher.Validate(tmp);
                 if (problem != null) throw new Exception(problem);
@@ -230,7 +222,7 @@ public class MainActivity : Activity
             catch (Exception ex)
             {
                 Log.Write("Copia fallida: " + ex);
-                RunOnUiThread(() => { mBusy = false; Refresh(); mStatus.Text = "Error: " + ex.Message; });
+                RunOnUiThread(() => { mBusy = false; Refresh(); mStatus.Text = "Error: " + ex.Message; mStatus.SetTextColor(new Color(unchecked((int)LauncherTheme.WARN))); });
             }
         });
     }

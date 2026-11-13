@@ -6,6 +6,7 @@ using Android.Content.PM;
 using Android.OS;
 using Android.Runtime;
 using Android.Views;
+using Android.Widget;
 
 namespace FnrPort.Droid;
 
@@ -19,6 +20,7 @@ public class GameActivity : Activity, ISurfaceHolderCallback
     static Thread sThread;
     static bool sRunning;
     static AudioTrackOutput sAudio;
+    TouchOverlay mTouch;
 
     protected override void OnCreate(Bundle savedInstanceState)
     {
@@ -31,10 +33,14 @@ public class GameActivity : Activity, ISurfaceHolderCallback
         var view = new SurfaceView(this);
         view.Holder.AddCallback(this);
         view.Focusable = true; view.FocusableInTouchMode = true;
-        SetContentView(view);
+        if (sHost == null) sHost = new AndroidHost();
+        var frame = new FrameLayout(this);
+        frame.AddView(view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
+        mTouch = new TouchOverlay(this, sHost, Settings.Load(this));
+        frame.AddView(mTouch, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
+        SetContentView(frame);
         view.RequestFocus();
         HideSystemUi();
-        if (sHost == null) sHost = new AndroidHost();
         try { sHost.RefreshRate = Display?.RefreshRate ?? 60; } catch { }
     }
 
@@ -114,6 +120,7 @@ public class GameActivity : Activity, ISurfaceHolderCallback
             CacheDir = Path.Combine(CacheDir.AbsolutePath, "exe"),
             SaveFile = Path.Combine(files, "savedata", "data.sav"),
             WindowScale = scale,
+            ScreenFormat = cfg.Format,
             Vsync = true,
             AudioOutput = sAudio,
         });
@@ -125,12 +132,14 @@ public class GameActivity : Activity, ISurfaceHolderCallback
     public override bool DispatchKeyEvent(KeyEvent e)
     {
         if (sHost == null) return base.DispatchKeyEvent(e);
+        if (InputMapper.IsPad(e)) mTouch?.OnPhysicalPadInput();
         if (InputMapper.HandleKey(sHost, e)) return true;
         return base.DispatchKeyEvent(e);
     }
 
     public override bool DispatchGenericMotionEvent(MotionEvent e)
     {
+        if (sHost != null && InputMapper.IsPad(e)) mTouch?.OnPhysicalPadInput();
         if (sHost != null && InputMapper.HandleMotion(sHost, e)) return true;
         return base.DispatchGenericMotionEvent(e);
     }

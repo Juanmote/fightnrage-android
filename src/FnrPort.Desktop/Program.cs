@@ -24,6 +24,7 @@ public static class Program
         int scale = 3, frames = 0, w = 0, h = 0;
         bool fullscreen = false, noAudio = false;
         string audioWav = null;
+        int format = 0;
         string outDir = Path.GetFullPath("capturas");
         var shots = new HashSet<long>();
         var keys = new List<(long frame, int key, bool down)>();
@@ -33,6 +34,7 @@ public static class Program
             {
                 case "--scale": scale = int.Parse(args[++i]); break;
                 case "--fullscreen": fullscreen = true; break;
+                case "--format": format = int.Parse(args[++i]); break;
                 case "--no-audio": noAudio = true; break;
                 case "--audio-wav": audioWav = Path.GetFullPath(args[++i]); break;
                 case "--frames": frames = int.Parse(args[++i]); break;
@@ -54,9 +56,12 @@ public static class Program
 
         string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "fnrport");
         GameLauncher.Prepare(gameDir, Path.Combine(data, "cache"));
+        sFormat = format;
         FnrPort.Audio.AudioOutput audio = noAudio ? null : audioWav != null ? new WavFileOutput(audioWav) : new SdlAudioOutput();
         return Run(gameDir, data, scale, fullscreen, w, h, frames, outDir, shots, keys, audio);
     }
+
+    static int sFormat;
 
     static int Run(string gameDir, string data, int scale, bool fullscreen, int w, int h, int frames, string outDir,
         HashSet<long> shots, List<(long frame, int key, bool down)> keys, FnrPort.Audio.AudioOutput audio)
@@ -81,6 +86,7 @@ public static class Program
             CacheDir = Path.Combine(data, "cache"),
             SaveFile = Path.Combine(data, "savedata", "data.sav"),
             WindowScale = scale,
+            ScreenFormat = sFormat,
             AudioOutput = audio,
             ConfigureCore = c =>
             {
