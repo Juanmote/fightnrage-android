@@ -119,14 +119,14 @@ public class GuestActivity : Activity, ISurfaceHolderCallback, IPadSink
         int[] px = null; Bitmap bmp = null;
         var paint = new Paint(PaintFlags.FilterBitmap);
         var dst = new Rect();
-        long lastFrame = Environment.TickCount64, lastInfo = 0;
+        long lastFrame = System.Environment.TickCount64, lastInfo = 0;
         while (mRun)
         {
             int bits = Bits();
             NetSession.GuestInputs(bits);
             // SELECT + START un segundo y medio: salir
             const int both = (int)NetSession.Btn.Start | (int)NetSession.Btn.Back;
-            if ((bits & both) == both) { if (mExitHeldSince == 0) mExitHeldSince = Environment.TickCount64; else if (Environment.TickCount64 - mExitHeldSince > 1500) { RunOnUiThread(Finish); break; } }
+            if ((bits & both) == both) { if (mExitHeldSince == 0) mExitHeldSince = System.Environment.TickCount64; else if (System.Environment.TickCount64 - mExitHeldSince > 1500) { RunOnUiThread(Finish); break; } }
             else mExitHeldSince = 0;
 
             if (!NetSession.Connected)
@@ -142,7 +142,7 @@ public class GuestActivity : Activity, ISurfaceHolderCallback, IPadSink
             var surf = mSurface;
             if (got && surf != null && surf.IsValid)
             {
-                lastFrame = Environment.TickCount64;
+                lastFrame = System.Environment.TickCount64;
                 if (bmp == null || bmp.Width != w || bmp.Height != h) { bmp = Bitmap.CreateBitmap(w, h, Bitmap.Config.Argb8888); px = new int[w * h]; }
                 for (int i = 0, j = 0; i < px.Length; i++, j += 3) px[i] = unchecked((int)0xFF000000) | rgb[j] << 16 | rgb[j + 1] << 8 | rgb[j + 2];
                 bmp.SetPixels(px, 0, w, 0, 0, w, h);
@@ -168,7 +168,7 @@ public class GuestActivity : Activity, ISurfaceHolderCallback, IPadSink
                 catch { }
                 finally { if (c != null) try { surf.UnlockCanvasAndPost(c); } catch { } }
             }
-            long now = Environment.TickCount64;
+            long now = System.Environment.TickCount64;
             if (now - lastInfo > 500)
             {
                 lastInfo = now;
