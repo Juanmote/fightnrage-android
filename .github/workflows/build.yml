@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -74,3 +77,21 @@ jobs:
         with:
           name: FightNRage-Android
           path: salida/*.apk
+
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          set -e
+          tag="v0.1.${{ github.run_number }}"
+          apk=$(ls salida/*.apk | head -1)
+          cp "$apk" "salida/FightNRage-Android-$tag.apk"
+          {
+            echo "Compilación automática del commit ${GITHUB_SHA::7}."
+            echo
+            echo "${COMMIT_MSG:-Compilación manual}" | grep -v "^Co-Authored-By\|^Claude-Session"
+            echo
+            echo "Necesitas tu copia del juego de PC (GOG o Steam): la carpeta con FIGHT_N_RAGE.exe y data."
+          } > notas.md
+          gh release create "$tag" "salida/FightNRage-Android-$tag.apk" --title "Fight'N Rage Android $tag" --notes-file notas.md --latest

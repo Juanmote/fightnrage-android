@@ -8,7 +8,7 @@ Compra el juego para apoyar a su creador, Sebastián García (SebaGamesDev).
 
 ## Cómo se usa
 
-1. Descarga la APK de la última compilación en **Actions → Compilar APK → Artifacts** e instálala.
+1. Descarga la APK de la última versión en **Releases** e instálala.
 2. Copia al móvil la carpeta del juego de PC (la que tiene `FIGHT_N_RAGE.exe` y `data`).
 3. Abre la app → **Elegir carpeta del juego** → selecciona esa carpeta. La app copia los archivos a su almacenamiento.
 4. (Opcional) **Importar partida de PC**: el `data.sav` de
