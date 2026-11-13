@@ -13,26 +13,30 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Instalar workload de Android
-        run: dotnet workload install android
+        working-directory: src/FnrPort.Android
+        run: dotnet --version && dotnet workload install android
 
       - name: Comprobar que el backend compila (escritorio)
         run: dotnet build src/FnrPort.Desktop -c Release
 
       - name: Restaurar
-        run: dotnet restore src/FnrPort.Android -r android-arm64
+        working-directory: src/FnrPort.Android
+        run: dotnet restore -r android-arm64
 
       - name: Copiar fachadas de .NET Framework (mscorlib, System...) como assets
         run: |
           set -e
-          dir=$(find "$HOME/.nuget/packages" "$DOTNET_ROOT/packs" -ipath "*runtime.mono.android-arm64*" -name mscorlib.dll 2>/dev/null | grep "/net8.0/" | head -1 | xargs dirname)
+          dir=$(find "$HOME/.nuget/packages" "$DOTNET_ROOT/packs" -ipath "*runtime.mono.android-arm64*" -name mscorlib.dll 2>/dev/null | grep "/net10.0/" | head -1 | xargs dirname)
           echo "Runtime pack: $dir"
           test -n "$dir"
           for f in mscorlib System System.Core System.Xml System.Drawing System.Data System.Numerics System.Runtime.Serialization System.Xml.Linq netstandard; do
@@ -52,7 +56,7 @@ jobs:
             echo "$FNR_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/fnr.keystore"
             extra="-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=$RUNNER_TEMP/fnr.keystore -p:AndroidSigningKeyAlias=fnr -p:AndroidSigningKeyPass=env:FNR_KEYSTORE_PASS -p:AndroidSigningStorePass=env:FNR_KEYSTORE_PASS"
           fi
-          dotnet build src/FnrPort.Android -c Release -r android-arm64 --no-restore $extra
+          cd src/FnrPort.Android && dotnet build -c Release -r android-arm64 --no-restore $extra
 
       - name: Revisar la APK
         run: |
