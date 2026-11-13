@@ -16,7 +16,7 @@ namespace FnrPort.Droid;
 sealed class TouchOverlay : View, InputManager.IInputDeviceListener
 {
     public const int DeviceId = -4242;
-    readonly AndroidHost mHost;
+    readonly IPadSink mHost;
     readonly Settings mCfg;
     readonly InputManager mIm;
     bool mActive;          // los controles están a la vista y cuentan como mando
@@ -30,7 +30,7 @@ sealed class TouchOverlay : View, InputManager.IInputDeviceListener
     readonly Dictionary<int, (float x, float y)> mPos = new();
     readonly Paint mFill = new(PaintFlags.AntiAlias), mStroke = new(PaintFlags.AntiAlias), mText = new(PaintFlags.AntiAlias);
 
-    public TouchOverlay(Context c, AndroidHost host, Settings cfg) : base(c)
+    public TouchOverlay(Context c, IPadSink host, Settings cfg) : base(c)
     {
         mHost = host; mCfg = cfg;
         mStroke.SetStyle(Paint.Style.Stroke);

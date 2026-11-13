@@ -26,7 +26,8 @@ public static class GameLauncher
         public string SaveFile;         // ruta del data.sav (formato de PC, gzip)
         public int WindowScale;         // Constants.WINDOW_SCALE (resolución interna = 354x200 x escala)
         public bool Vsync = true;
-        public int ScreenFormat;        // 0 = 16:9, 1 = 4:3, 2 = 8:7 (recorte de laterales)
+        public int ScreenFormat;
+        public bool NetHost;            // crear una partida en red (anfitrión)        // 0 = 16:9, 1 = 4:3, 2 = 8:7 (recorte de laterales)
         public object Audio;            // IAudioEngine propio (object para no cargar el exe antes de tiempo); tiene prioridad
         public FnrPort.Audio.AudioOutput AudioOutput; // salida de la plataforma; null y sin Audio = sin sonido
         public string[] Args = Array.Empty<string>();
@@ -158,7 +159,10 @@ public static class GameLauncher
         sCore = core;
         o.ConfigureCore?.Invoke(core);
         string save = LoadSave();
-        int r = BeatEmUpGame.Program.Run(core, ExternalCall, save, o.Args);
+        if (o.NetHost) FnrPort.Net.NetSession.HostStart();
+        int r;
+        try { r = BeatEmUpGame.Program.Run(core, ExternalCall, save, o.Args); }
+        finally { if (o.NetHost) FnrPort.Net.NetSession.Stop(); }
         StoreSave();
         return r;
     }

@@ -189,6 +189,7 @@ public sealed class AudioPump
             mOut.WaitWhilePaused(() => mRunning);
             if (!mRunning) break;
             mMixer.Render(buf, block);
+            if (FnrPort.Net.NetSession.HostWantsFrame) FnrPort.Net.NetSession.HostAudio(buf, block, mOut.SampleRate);
             try { mOut.Write(buf, block); }
             catch (Exception ex)
             {

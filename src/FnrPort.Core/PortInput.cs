@@ -29,6 +29,7 @@ public class PortInput : IInputEngine
     readonly HashSet<int> mDownKeys = new();
     public bool UnifyLeftAnalogIntoDpad = true;
     public bool TreatAnalogsAsDpad = true;
+    int mGuestSlot = -1;
 
     public event Action<int> KeyPressed;
     public event Action<int> KeyReleased;
@@ -74,6 +75,18 @@ public class PortInput : IInputEngine
     /// <summary>Actualiza los 8 mandos a partir de lo que ve la plataforma (una vez por frame).</summary>
     public void UpdatePads(PadSnapshot[] snaps)
     {
+        // Juego en red: los botones del invitado entran como un mando más, en el primer hueco libre.
+        if (FnrPort.Net.NetSession.GuestPad(out var guest))
+        {
+            snaps = snaps == null ? new PadSnapshot[MaxPads] : (PadSnapshot[])snaps.Clone();
+            if (mGuestSlot < 0 || mGuestSlot >= snaps.Length || snaps[mGuestSlot].Connected)
+            {
+                mGuestSlot = -1;
+                for (int i = 0; i < snaps.Length; i++) if (!snaps[i].Connected) { mGuestSlot = i; break; }
+            }
+            if (mGuestSlot >= 0) snaps[mGuestSlot] = guest;
+        }
+        else mGuestSlot = -1;
         for (int i = 0; i < MaxPads; i++)
         {
             var st = mPads[i];

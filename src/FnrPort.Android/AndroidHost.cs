@@ -8,7 +8,7 @@ using Android.Views;
 namespace FnrPort.Droid;
 
 /// <summary>Host de Android: EGL sobre un SurfaceView, bucle en un hilo propio, mandos y teclado.</summary>
-public sealed class AndroidHost : IPortHost
+public sealed class AndroidHost : IPortHost, IPadSink
 {
     // Constantes EGL (valores de la especificación)
     const int EGL_NONE = 0x3038, EGL_RED_SIZE = 0x3024, EGL_GREEN_SIZE = 0x3023, EGL_BLUE_SIZE = 0x3022, EGL_ALPHA_SIZE = 0x3021,

@@ -179,11 +179,42 @@ public class PortCore : ICoreEngine
         mBackBuffer.Smoothing = mDesc.SmoothScale;
         mBackBuffer.BlendMode = BLEND_MODE.NORMAL;
         mBackBuffer.Draw(main.GetBitmap(), src, t, new Vector2D(sw / 2f, mh / 2f));
+        if (FnrPort.Net.NetSession.HostWantsFrame) CaptureForNet(main);
         Renderer.Flush();
         AfterRender?.Invoke(this);
         mHost.SwapBuffers();
         frameCount++;
         FrameNumber++;
+    }
+
+    // ---- juego en red: la imagen reducida a 354x200 para el invitado
+    PortSurface mNetSurf;
+    byte[] mNetRgba, mNetRgb;
+
+    unsafe void CaptureForNet(IDrawableSurface main)
+    {
+        try
+        {
+            const int W = FnrPort.Net.NetSession.MaxW, H = FnrPort.Net.NetSession.MaxH;
+            mNetSurf ??= PortSurface.CreateNew(W, H);
+            mNetRgba ??= new byte[W * H * 4];
+            mNetRgb ??= new byte[W * H * 3];
+            var t = Transformation.Default;
+            t.Position = new Vector2D(W / 2f, H / 2f);
+            t.Scale = new Vector2D(W / (float)main.Width, H / (float)main.Height);
+            mNetSurf.Color = new Color(255, 255, 255, 255);
+            mNetSurf.BlendMode = BLEND_MODE.NORMAL;
+            mNetSurf.Smoothing = false;
+            mNetSurf.Draw(main.GetBitmap(), main.FullRect, t, new Vector2D(main.Width / 2f, main.Height / 2f));
+            Renderer.Flush();
+            uint prev = Renderer.BoundFbo;
+            GL.glBindFramebuffer(GL.FRAMEBUFFER, mNetSurf.Fbo);
+            fixed (byte* p = mNetRgba) GL.glReadPixels(0, 0, W, H, GL.RGBA, GL.UNSIGNED_BYTE, p);
+            GL.glBindFramebuffer(GL.FRAMEBUFFER, prev);
+            for (int i = 0, j = 0; i < mNetRgba.Length; i += 4, j += 3) { mNetRgb[j] = (byte)(mNetRgba[i] & 0xF8); mNetRgb[j + 1] = (byte)(mNetRgba[i + 1] & 0xFC); mNetRgb[j + 2] = (byte)(mNetRgba[i + 2] & 0xF8); } // precisión de 16 bits: comprime mucho mejor
+            FnrPort.Net.NetSession.HostFrame(mNetRgb, W, H, 0);
+        }
+        catch (Exception ex) { Console.WriteLine("[FnrNet] captura: " + ex.Message); }
     }
 
     public void Close() => mClosed = true;

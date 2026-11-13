@@ -35,6 +35,7 @@ public static class Program
                 case "--scale": scale = int.Parse(args[++i]); break;
                 case "--fullscreen": fullscreen = true; break;
                 case "--format": format = int.Parse(args[++i]); break;
+                case "--net-host": sNetHost = true; break;
                 case "--no-audio": noAudio = true; break;
                 case "--audio-wav": audioWav = Path.GetFullPath(args[++i]); break;
                 case "--frames": frames = int.Parse(args[++i]); break;
@@ -62,6 +63,7 @@ public static class Program
     }
 
     static int sFormat;
+    static bool sNetHost;
 
     static int Run(string gameDir, string data, int scale, bool fullscreen, int w, int h, int frames, string outDir,
         HashSet<long> shots, List<(long frame, int key, bool down)> keys, FnrPort.Audio.AudioOutput audio)
@@ -87,6 +89,7 @@ public static class Program
             SaveFile = Path.Combine(data, "savedata", "data.sav"),
             WindowScale = scale,
             ScreenFormat = sFormat,
+            NetHost = sNetHost,
             AudioOutput = audio,
             ConfigureCore = c =>
             {

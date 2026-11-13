@@ -21,6 +21,9 @@ public class GameActivity : Activity, ISurfaceHolderCallback
     static bool sRunning;
     static AudioTrackOutput sAudio;
     TouchOverlay mTouch;
+    TextView mNetInfo;
+    public const string ExtraNetHost = "net_host";
+    static bool sNetHost;
 
     protected override void OnCreate(Bundle savedInstanceState)
     {
@@ -38,7 +41,14 @@ public class GameActivity : Activity, ISurfaceHolderCallback
         frame.AddView(view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
         mTouch = new TouchOverlay(this, sHost, Settings.Load(this));
         frame.AddView(mTouch, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
+        mNetInfo = new TextView(this) { TextSize = 13, Visibility = ViewStates.Gone };
+        mNetInfo.SetTextColor(Android.Graphics.Color.White);
+        mNetInfo.SetBackgroundColor(new Android.Graphics.Color(0, 0, 0, 150));
+        mNetInfo.SetPadding(24, 10, 24, 10);
+        frame.AddView(mNetInfo, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent, GravityFlags.Top | GravityFlags.CenterHorizontal));
         SetContentView(frame);
+        if (sThread == null) sNetHost = Intent?.GetBooleanExtra(ExtraNetHost, false) ?? false;
+        if (sNetHost) { WifiLock.Acquire(this); StartNetStatus(); }
         view.RequestFocus();
         HideSystemUi();
         try { sHost.RefreshRate = Display?.RefreshRate ?? 60; } catch { }
@@ -121,10 +131,32 @@ public class GameActivity : Activity, ISurfaceHolderCallback
             SaveFile = Path.Combine(files, "savedata", "data.sav"),
             WindowScale = scale,
             ScreenFormat = cfg.Format,
+            NetHost = sNetHost,
             Vsync = true,
             AudioOutput = sAudio,
         });
         sAudio = null;
+    }
+
+    // ------------------------------------------------------------ juego en red (anfitrión): avisos encima del juego
+
+    void StartNetStatus()
+    {
+        long eventUntil = 0; string eventText = null;
+        var h = new Handler(Looper.MainLooper);
+        void Tick()
+        {
+            if (IsFinishing || IsDestroyed) return;
+            int ev = FnrPort.Net.NetSession.HostEvent();
+            long now = Java.Lang.JavaSystem.CurrentTimeMillis();
+            if (ev == 1) { eventText = "Ha entrado el jugador en red"; eventUntil = now + 4000; }
+            if (ev == 2) { eventText = "El jugador en red se ha ido"; eventUntil = now + 4000; }
+            string t = now < eventUntil ? eventText : FnrPort.Net.NetSession.HostStatus();
+            mNetInfo.Text = t;
+            mNetInfo.Visibility = string.IsNullOrEmpty(t) ? ViewStates.Gone : ViewStates.Visible;
+            h.PostDelayed(Tick, 500);
+        }
+        h.PostDelayed(Tick, 500);
     }
 
     // ------------------------------------------------------------ entrada

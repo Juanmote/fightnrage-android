@@ -21,7 +21,7 @@ static class InputMapper
         return false;
     }
 
-    public static bool HandleKey(AndroidHost host, KeyEvent e)
+    public static bool HandleKey(IPadSink host, KeyEvent e)
     {
         if (e.RepeatCount > 0 && e.Action == KeyEventActions.Down) return true;
         bool down = e.Action == KeyEventActions.Down;
@@ -78,7 +78,7 @@ static class InputMapper
         _ => false
     };
 
-    public static bool HandleMotion(AndroidHost host, MotionEvent e)
+    public static bool HandleMotion(IPadSink host, MotionEvent e)
     {
         if (!IsPad(e) || e.Action != MotionEventActions.Move) return false;
         string name = e.Device?.Name ?? "Gamepad";
@@ -145,4 +145,12 @@ static class InputMapper
             _ => 0
         };
     }
+}
+
+/// <summary>Destino de los mandos (el juego en este aparato, o el invitado del juego en red).</summary>
+public interface IPadSink
+{
+    void UpdatePad(int deviceId, string name, Func<PadSnapshot, PadSnapshot> change);
+    void RemovePad(int deviceId);
+    void Enqueue(Action<PortInput> a);
 }

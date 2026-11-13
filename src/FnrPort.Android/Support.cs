@@ -232,3 +232,24 @@ static class LogExport
         return path;
     }
 }
+
+/// <summary>En muchas consolas la wifi tira los paquetes de difusión si nadie pide este cerrojo (búsqueda en la wifi).</summary>
+static class WifiLock
+{
+    static Android.Net.Wifi.WifiManager.MulticastLock sLock;
+    public static void Acquire(Context ctx)
+    {
+        try
+        {
+            if (sLock == null)
+            {
+                var wm = (Android.Net.Wifi.WifiManager)ctx.ApplicationContext.GetSystemService(Context.WifiService);
+                sLock = wm?.CreateMulticastLock("fnr-net");
+                sLock?.SetReferenceCounted(false);
+            }
+            sLock?.Acquire();
+        }
+        catch (Exception ex) { Console.WriteLine("[FnrNet] MulticastLock: " + ex.Message); }
+    }
+    public static void Release() { try { sLock?.Release(); } catch { } }
+}
