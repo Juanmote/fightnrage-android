@@ -24,7 +24,9 @@ Si algo falla, el registro está en `Android/data/com.juanmote.fightnrage/files/
 | Gráficos (OpenGL ES, shaders, efecto CRT) | ✅ probado en PC con el backend nuevo |
 | Mando (Android) / teclado | ✅ implementado, pendiente de probar en consola |
 | Partidas (compatibles con PC) | ✅ |
-| Sonido (efectos y música con bucles) | ✅ probado en PC, pendiente de probar en consola |
+| Sonido (efectos y música con bucles) | ✅ |
+| Controles táctiles (provisionales) | 🧪 |
+| Juego en red (wifi e internet) | 🧪 probado en PC |
 | Controles táctiles | ⏳ fase 3 |
 
 Detalles técnicos en [docs/ANALISIS.md](docs/ANALISIS.md).

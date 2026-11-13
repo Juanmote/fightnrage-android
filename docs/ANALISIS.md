@@ -113,3 +113,26 @@ Réplica de `FModAudioImplementation` (descompilada del exe con un volcador de I
 - Launcher: botón «Sonido: sí/no».
 - Rendimiento: NVorbis decodifica ~190x tiempo real en PC.
 
+
+
+## Versión 0.1.10 (13-11-2026): mandos, créditos, imagen, launcher, táctiles y juego en red
+
+- **Parches de la copia del exe** (`FnrPort.Core/ExePatcher.cs`, por nombre de método y patrón de bytes; si no
+  cuadra, se salta): (1) créditos del título + " - PORTED BY JUANMOTE" (el texto nuevo se escribe encima de un mensaje
+  de error de FMOD del montón #US y el `ldstr` de `TitleState` apunta a él); (2) DEVICE CONFIGURATION: el «WHEN READY,
+  PRESS 'ESC'» pasa a `GameSession.IsPressedAnyBackOnMenu` (BACK/SELECT) y el «Press 'ENTER' to accept» a
+  `IsPressedAnyAccept` (START/A). Comprobado que el JIT acepta los dos métodos.
+- **Imagen**: Options → Video del juego: FULL SCREEN = estirar a toda la pantalla, WINDOWED = sin deformar
+  (`ScreenSettings` en PortCore, llega por `ExternalCall` 0/1). Launcher: Formato 16:9 / 4:3 / 8:7 (recorta los
+  laterales: el juego dibuja siempre 354x200 con constantes; se pierde algo del marcador de los lados).
+- **Launcher** con el estilo del de SorR (`LauncherTheme.cs`): ilustración del usuario a la derecha, degradado de fuego,
+  verde del logo, fuentes Bangers/Barlow (OFL). Icono: la imagen pequeña del usuario (también adaptativo).
+- **Táctiles** (`TouchOverlay.cs`, provisionales sin arte): cruceta, Golpe (X), Salto (A), Especial (B), Start, Back.
+  Automáticos: se ocultan si hay mando físico o se usa uno; vuelven al tocar la pantalla. Opacidad y tamaño en el launcher.
+- **Juego en red** (`FnrPort.Core/Net/`), mismo modelo que Outfoxies/SorR: el anfitrión ejecuta el juego, manda la
+  imagen reducida a 354x200 (precisión de 16 bits, XOR con la anterior desplazada + zlib) y el sonido del mezclador
+  (24 kHz ADPCM); el invitado (`GuestActivity`, no necesita el juego) manda sus botones, que entran como un mando más
+  en el primer hueco libre (`PortInput.UpdatePads`). TCP 47830; wifi: UDP "FNRQ1"/"FNRN1" (47830/47831); internet:
+  UPnP + código de 8 letras, o servidor intermedio bore.pub:7835; Tailscale. Probado en PC con dos procesos
+  (`--net-host` y `tools`: invitado de consola): imagen, sonido y ping bien; vídeo ~30-60 KB por imagen.
+  Invitado: salir con Atrás o SELECT+START 1,5 s.
