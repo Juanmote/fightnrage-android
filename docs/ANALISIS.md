@@ -53,6 +53,12 @@ El propio exe trae `Empty_AudioImplementation.Empty_AudioEngine` (audio mudo): �
 
 ## Hallazgos de la implementación
 
+- **Android/Mono carga los tipos de los campos al crear una clase**: si una actividad tiene campos de tipos
+  que usan el juego, pide `FIGHT_N_RAGE` al instante. Por eso `FnrApplication.OnCreate` instala el resolvedor
+  (perezoso) y las fachadas antes de abrir ninguna pantalla (fallo de la v0.1.4/0.1.5).
+- **Registro**: el launcher tiene «Guardar registro en Descargas» / «Compartir registro» (log actual,
+  log de la sesión anterior y logcat de la app), porque en Android 13+ no se puede entrar en `Android/data`.
+
 - **Marca de 32 bits**: el exe es PE32 con `32BITREQUIRED`; los runtimes de 64 bits se niegan a cargarlo.
   `GameLauncher.PrepareExe` hace una copia quitando esa marca (equivale a `corflags /32BIT-`); nada más cambia.
 - Cargado como ensamblado en .NET moderno, el juego lee `data/` sin problemas (`PathIndexer.SetFromDatFile`
@@ -77,11 +83,18 @@ El propio exe trae `Empty_AudioImplementation.Empty_AudioEngine` (audio mudo): �
 
 ## Plan
 
-1. **Fase 1:** launcher + AndroidCore + gráficos (GLES 3) + mando, audio mudo. ✅ (falta probar en la consola)
+1. **Fase 1:** launcher + AndroidCore + gráficos (GLES 3) + mando, audio mudo. ✅ Probado en Odin 3 (Android 15) con v0.1.6: menús, cambio de idioma, partida y salir, todo bien.
 2. **Fase 2:** audio (FMOD 2.x Android u otro motor).
 3. **Fase 3:** controles táctiles, ajustes, soporte de la versión Steam.
 
 ## Pendiente
 
 - Comprobar el exe de Steam.
-- Probar la APK en la Odin 3 (log en `Android/data/com.juanmote.fightnrage/files/log.txt`).
+
+## Siguiente: sonido (fase 2)
+
+- Implementar `IAudioEngine`/`ISound`/`ISoundInstance`/`IMusic` (ver `FModAudioImplementation` del exe
+  descompilado: volumen, pan, pitch, loop, pausa; `ISound.Play(volumen, posición, pitch, loop)`).
+- Formatos: WAV (efectos, 248) y OGG (música, 51), leídos con `PathIndexer` (gzip).
+- Plan: mezclador propio en C# + salida AudioTrack (Android) / SDL (escritorio), WAV propio y OGG con NVorbis
+  (MIT, NuGet en CI). Alternativa descartada por ahora: FMOD para Android (licencia y versión 1.07).
