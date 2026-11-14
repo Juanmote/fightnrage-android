@@ -321,7 +321,37 @@ static class LauncherMusic
 /// </summary>
 static class AchievementInfo
 {
-    public sealed class Item { public string Id, NameEn, DescEn, NameEs, DescEs; public string Name => L.ES && !string.IsNullOrEmpty(NameEs) ? NameEs : NameEn; public string Desc => L.ES && !string.IsNullOrEmpty(DescEs) ? DescEs : DescEn; }
+    public sealed class Item
+    {
+        public string Id, NameEn, DescEn, NameEs, DescEs;
+        public string Name => L.ES ? (Es.TryGetValue(Id, out var t) ? t.name : !string.IsNullOrEmpty(NameEs) ? NameEs : NameEn) : NameEn;
+        public string Desc => L.ES ? (Es.TryGetValue(Id, out var t) ? t.desc : !string.IsNullOrEmpty(DescEs) ? DescEs : DescEn) : DescEn;
+    }
+
+    /// <summary>Steam solo los tiene en inglés: traducción propia para el launcher en castellano.</summary>
+    static readonly System.Collections.Generic.Dictionary<string, (string name, string desc)> Es = new()
+    {
+        ["DIRECT_CLEAR_EASY"] = ("Pan comido", "Termina el juego en dificultad Fácil."),
+        ["DIRECT_CLEAR_NORMAL"] = ("Suficiente", "Termina el juego en dificultad Normal."),
+        ["DIRECT_CLEAR_HARD"] = ("Más que bien", "Termina el juego en dificultad Difícil."),
+        ["DIRECT_CLEAR_HARDEST"] = ("Jugador hardcore", "Termina el juego en la dificultad más alta."),
+        ["GAL_BLACK_BELT"] = ("Gal dominada", "Consigue el cinturón negro de Gal."),
+        ["MINOTAUR_BLACK_BELT"] = ("Ricardo dominado", "Consigue el cinturón negro de Ricardo."),
+        ["MASTER_BLACK_BELT"] = ("F.Norris dominado", "Consigue el cinturón negro de F.Norris."),
+        ["ALL_COSTUMES_GAL"] = ("Coleccionista: Gal", "Consigue todos los trajes de Gal."),
+        ["ALL_COSTUMES_MINOTAUR"] = ("Coleccionista: Ricardo", "Consigue todos los trajes de Ricardo."),
+        ["ALL_COSTUMES_MASTER"] = ("Coleccionista: F.Norris", "Consigue todos los trajes de F.Norris."),
+        ["ALL_COMPLEMENTS_SOLD"] = ("Coleccionista de complementos", "Consigue todos los complementos."),
+        ["ALL_CHARACTERS_SOLD"] = ("Reclutador", "Consigue todos los personajes."),
+        ["ANY_CLEAR_EXTRA_SPEED"] = ("¡Más rápido!", "Termina el juego con cualquier velocidad extra."),
+        ["ANY_1CC"] = ("Sin continuar", "Termina el juego sin usar continuaciones, en dificultad Normal o superior."),
+        ["SCORE_RANK_S_ALL"] = ("Maestro del Score Attack", "Consigue rango S con todos los personajes en el modo Score Attack."),
+        ["TIME_ATTACK_RANK_S_ALL_FIX_2"] = ("Maestro del Time Attack", "Consigue rango S con todos los personajes en el modo Time Attack."),
+        ["SURVIVAL_RANK_S_ALL"] = ("Maestro de Survival", "Consigue rango S con todos los personajes en el modo Survival."),
+        ["VIEW_QUARTER_ENDINGS"] = ("Finales al 25 %", "Descubre el 25 % de los finales."),
+        ["VIEW_HALF_ENDINGS"] = ("Finales al 50 %", "Descubre el 50 % de los finales."),
+        ["VIEW_ALL_ENDINGS"] = ("Finales al 100 %", "Descubre todos los finales."),
+    };
 
     static System.Collections.Generic.Dictionary<string, Item> sItems;
 
