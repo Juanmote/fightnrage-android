@@ -8,10 +8,11 @@ using Android.Views;
 namespace FnrPort.Droid;
 
 /// <summary>
-/// Controles táctiles provisionales (el arte vendrá después): cruceta a la izquierda; Golpe, Salto y
-/// Especial a la derecha; Start y Back arriba. Funcionan como un mando más (botones X, A, B, Start y
-/// Back del mando tipo Xbox, que es lo que el juego espera por defecto). Se ocultan solos cuando se usa
-/// un mando físico y vuelven al tocar la pantalla.
+/// Controles táctiles con el arte de Juanmote (sin rótulos, valen para cualquier idioma): cruceta a la
+/// izquierda; Golpe, Salto y Especial a la derecha; Back y Start arriba. Funcionan como un mando más
+/// (botones Y, B, A, Start y Back: la configuración por defecto del port). Sin tocar se ven
+/// semitransparentes; lo que se pulsa (incluido cada lado de la cruceta) se ve opaco. Se ocultan solos
+/// cuando se usa un mando físico y vuelven al tocar la pantalla.
 /// </summary>
 sealed class TouchOverlay : View, InputManager.IInputDeviceListener
 {
@@ -23,19 +24,21 @@ sealed class TouchOverlay : View, InputManager.IInputDeviceListener
     bool mPadSeen;         // se ha usado un mando físico desde la última vez que se tocó la pantalla
 
     enum Ctl { None, Dpad, Attack, Jump, Special, Start, Back }
-    sealed class Btn { public Ctl Kind; public float X, Y, R; public string Label; public uint Color; }
+    sealed class Btn { public Ctl Kind; public float X, Y, R, W, H; public Bitmap Img; }
     readonly List<Btn> mButtons = new();
     Btn mDpad;
     readonly Dictionary<int, Ctl> mPointers = new();       // dedo -> control
     readonly Dictionary<int, (float x, float y)> mPos = new();
-    readonly Paint mFill = new(PaintFlags.AntiAlias), mStroke = new(PaintFlags.AntiAlias), mText = new(PaintFlags.AntiAlias);
+    readonly Paint mPaint = new(PaintFlags.AntiAlias | PaintFlags.FilterBitmap);
+    readonly Bitmap mImgDpad, mImgAttack, mImgJump, mImgSpecial, mImgStart, mImgBack;
+    readonly RectF mDst = new();
 
     public TouchOverlay(Context c, IPadSink host, Settings cfg) : base(c)
     {
         mHost = host; mCfg = cfg;
-        mStroke.SetStyle(Paint.Style.Stroke);
-        mText.TextAlign = Paint.Align.Center;
-        mText.FakeBoldText = true;
+        Bitmap Img(int id) { try { return BitmapFactory.DecodeResource(c.Resources, id); } catch { return null; } }
+        mImgDpad = Img(Resource.Drawable.tc_dpad); mImgAttack = Img(Resource.Drawable.tc_attack); mImgJump = Img(Resource.Drawable.tc_jump);
+        mImgSpecial = Img(Resource.Drawable.tc_special); mImgStart = Img(Resource.Drawable.tc_start); mImgBack = Img(Resource.Drawable.tc_back);
         mIm = (InputManager)c.GetSystemService(Context.InputService);
         try { mIm?.RegisterInputDeviceListener(this, null); } catch { }
         RefreshVisibility();
@@ -99,13 +102,15 @@ sealed class TouchOverlay : View, InputManager.IInputDeviceListener
     {
         mButtons.Clear();
         float u = Math.Min(w, h) / 100f * mCfg.TouchSize / 100f; // unidad: 1 % del lado corto
-        mDpad = new Btn { Kind = Ctl.Dpad, X = 22 * u + 2 * u, Y = h - 24 * u, R = 19 * u };
-        float bx = w - 16 * u, by = h - 20 * u, br = 9 * u;
-        mButtons.Add(new Btn { Kind = Ctl.Attack, X = bx - 22 * u, Y = by, R = br, Label = "GOLPE", Color = 0xFFE3261B });
-        mButtons.Add(new Btn { Kind = Ctl.Jump, X = bx, Y = by - 14 * u, R = br, Label = "SALTO", Color = 0xFF4CD137 });
-        mButtons.Add(new Btn { Kind = Ctl.Special, X = bx - 22 * u, Y = by - 24 * u, R = br, Label = "ESP.", Color = 0xFFFFD52E });
-        mButtons.Add(new Btn { Kind = Ctl.Back, X = w / 2f - 12 * u, Y = 7 * u, R = 5 * u, Label = "BACK", Color = 0xFFB8A9B4 });
-        mButtons.Add(new Btn { Kind = Ctl.Start, X = w / 2f + 12 * u, Y = 7 * u, R = 5 * u, Label = "START", Color = 0xFFB8A9B4 });
+        mDpad = new Btn { Kind = Ctl.Dpad, X = 22 * u + 2 * u, Y = h - 24 * u, R = 19 * u, Img = mImgDpad };
+        float bx = w - 16 * u, by = h - 20 * u, br = 9.5f * u;
+        // Golpe abajo a la izquierda, Salto abajo a la derecha, Especial encima (como Y, B y A en la Odin)
+        mButtons.Add(new Btn { Kind = Ctl.Attack, X = bx - 22 * u, Y = by, R = br, Img = mImgAttack });
+        mButtons.Add(new Btn { Kind = Ctl.Jump, X = bx, Y = by - 14 * u, R = br, Img = mImgJump });
+        mButtons.Add(new Btn { Kind = Ctl.Special, X = bx - 22 * u, Y = by - 24 * u, R = br, Img = mImgSpecial });
+        float ph = 8 * u;
+        mButtons.Add(new Btn { Kind = Ctl.Back, X = w / 2f - 13 * u, Y = 7 * u, R = ph * 0.75f, W = ph * 2.07f, H = ph, Img = mImgBack });
+        mButtons.Add(new Btn { Kind = Ctl.Start, X = w / 2f + 13 * u, Y = 7 * u, R = ph * 0.75f, W = ph * 2.07f, H = ph, Img = mImgStart });
     }
 
     public override bool OnTouchEvent(MotionEvent e)
@@ -208,7 +213,7 @@ sealed class TouchOverlay : View, InputManager.IInputDeviceListener
         {
             p.Connected = true; p.Name = "Touch";
             p.DUp = up; p.DDown = down; p.DLeft = left; p.DRight = right;
-            p.X = atk; p.A = jump; p.B = sp; p.Start = start; p.Back = back;
+            p.Y = atk; p.B = jump; p.A = sp; p.Start = start; p.Back = back;
             return p;
         });
     }
@@ -220,44 +225,38 @@ sealed class TouchOverlay : View, InputManager.IInputDeviceListener
         int alpha = Math.Clamp(mCfg.TouchAlpha, 10, 100) * 255 / 100;
         var held = new HashSet<Ctl>(mPointers.Values);
 
-        // cruceta
-        mFill.Color = new Color(0, 0, 0, alpha * 2 / 3);
-        cv.DrawCircle(mDpad.X, mDpad.Y, mDpad.R, mFill);
-        mStroke.StrokeWidth = mDpad.R * 0.05f;
-        mStroke.Color = new Color(255, 255, 255, alpha);
-        cv.DrawCircle(mDpad.X, mDpad.Y, mDpad.R, mStroke);
-        float a = mDpad.R * 0.55f, t = mDpad.R * 0.22f;
-        DrawArrow(cv, mDpad.X, mDpad.Y - a, 0, -1, t, mUp, alpha);
-        DrawArrow(cv, mDpad.X, mDpad.Y + a, 0, 1, t, mDown, alpha);
-        DrawArrow(cv, mDpad.X - a, mDpad.Y, -1, 0, t, mLeft, alpha);
-        DrawArrow(cv, mDpad.X + a, mDpad.Y, 1, 0, t, mRight, alpha);
+        // cruceta: entera semitransparente y, encima, opaco solo el lado (o los lados) que se pulsan
+        if (mImgDpad != null)
+        {
+            float d = mDpad.R * 2f;
+            mDst.Set(mDpad.X - mDpad.R, mDpad.Y - mDpad.R, mDpad.X + mDpad.R, mDpad.Y + mDpad.R);
+            mPaint.Alpha = alpha;
+            cv.DrawBitmap(mImgDpad, null, mDst, mPaint);
+            float a = 0.37f * d, l = mDst.Left, t = mDst.Top, r = mDst.Right, b = mDst.Bottom;
+            mPaint.Alpha = 255;
+            if (mUp) DrawPart(cv, l, t, r, t + a);
+            if (mDown) DrawPart(cv, l, b - a, r, b);
+            if (mLeft) DrawPart(cv, l, t, l + a, b);
+            if (mRight) DrawPart(cv, r - a, t, r, b);
+        }
 
         foreach (var b in mButtons)
         {
+            if (b.Img == null) continue;
             bool on = held.Contains(b.Kind);
-            var col = new Color(unchecked((int)b.Color));
-            mFill.Color = new Color(col.R, col.G, col.B, on ? Math.Min(255, alpha + 90) : alpha * 2 / 3);
-            cv.DrawCircle(b.X, b.Y, b.R, mFill);
-            mStroke.StrokeWidth = b.R * 0.08f;
-            mStroke.Color = new Color(255, 255, 255, alpha);
-            cv.DrawCircle(b.X, b.Y, b.R, mStroke);
-            mText.TextSize = b.R * (b.Label.Length > 4 ? 0.42f : 0.55f);
-            mText.Color = new Color(255, 255, 255, Math.Min(255, alpha + 60));
-            mText.SetShadowLayer(b.R * 0.08f, 0, 0, Color.Black);
-            cv.DrawText(b.Label, b.X, b.Y + mText.TextSize * 0.35f, mText);
+            float hw = b.W > 0 ? b.W / 2f : b.R, hh = b.H > 0 ? b.H / 2f : b.R;
+            if (on) { hw *= 0.94f; hh *= 0.94f; } // se hunde un poco al pulsar
+            mDst.Set(b.X - hw, b.Y - hh, b.X + hw, b.Y + hh);
+            mPaint.Alpha = on ? 255 : alpha;
+            cv.DrawBitmap(b.Img, null, mDst, mPaint);
         }
     }
 
-    void DrawArrow(Canvas cv, float x, float y, int dx, int dy, float s, bool on, int alpha)
+    void DrawPart(Canvas cv, float l, float t, float r, float b)
     {
-        using var path = new Path();
-        // triángulo que apunta en (dx, dy)
-        float px = -dy, py = dx;
-        path.MoveTo(x + dx * s, y + dy * s);
-        path.LineTo(x - dx * s * 0.6f + px * s, y - dy * s * 0.6f + py * s);
-        path.LineTo(x - dx * s * 0.6f - px * s, y - dy * s * 0.6f - py * s);
-        path.Close();
-        mFill.Color = on ? new Color(255, 213, 46, Math.Min(255, alpha + 90)) : new Color(255, 255, 255, alpha);
-        cv.DrawPath(path, mFill);
+        cv.Save();
+        cv.ClipRect(l, t, r, b);
+        cv.DrawBitmap(mImgDpad, null, mDst, mPaint);
+        cv.Restore();
     }
 }

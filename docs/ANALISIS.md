@@ -136,3 +136,31 @@ Réplica de `FModAudioImplementation` (descompilada del exe con un volcador de I
   UPnP + código de 8 letras, o servidor intermedio bore.pub:7835; Tailscale. Probado en PC con dos procesos
   (`--net-host` y `tools`: invitado de consola): imagen, sonido y ping bien; vídeo ~30-60 KB por imagen.
   Invitado: salir con Atrás o SELECT+START 1,5 s.
+
+
+## Versión 0.1.12 (14-11-2026): perfiles, logros, vibración, mandos, táctiles e idioma
+
+- **Probado con el exe de Steam** (build 220120, igual que GOG): arranca y todos los parches se aplican.
+- **Parches nuevos** (`ExePatcher.cs`; los textos nuevos van encima de mensajes de error de FMOD del #US, `Ctx.NewString`):
+  - Pantalla de créditos: los dos `AddMargin()` del final del constructor de `CreditsComponent` pasan a
+    `AddTextLine("- Ported by Juanmote -", false)`.
+  - DEVICE CONFIGURATION: todas las comprobaciones de Esc de `InputConfigComponent.Process` → `GameSession.IsPressedAnyCancelation`
+    (Esc o BACK = SELECT) y la de Enter → `IsPressedAnyStart`. Antes «aceptar» era `IsPressedAnyAccept` (START o SALTO) y
+    «volver a configurar» seguía pidiendo Esc. Los textos (ESC/ENTER → SELECT/START, en todos los idiomas) se cambian en
+    `LocalizableTextManager.mTextByLanguage` desde `GameHooks`.
+  - Mando por defecto (`InputConfigComponent.Data.CreateXboxGamePad`): golpe 2→3 (Y), salto 0→1 (B), especial 1→0 (A).
+    Al cargar una partida, una sola vez (`data.sav.pad2`), los mandos guardados con la configuración antigua se pasan a la nueva.
+- **Perfil «todo desbloqueado»**: `Program.ENABLED_ALL_CONTENT = true` en `PortCore.Initialize` (después de que `Program.Run`
+  ponga sus valores). Lo consultan solo SaveData (IsSold, IsMeetsRequeriments, trajes, consejos, músicas, finales, fases) y
+  los entrenamientos de Commands.
+- **Logros**: el juego llama al launcher con `Constants.REQ` (en PC van a Steam/GOG; `TIME_ATTACK_RANK_S_ALL` + `_FIX_2`).
+  `Achievements.Report` los guarda en `files/logros.txt`. `SaveData.ApplyInitialValues` vuelve a anunciar todos los que ya
+  tiene la partida al cargarla: así se recuperan los de una partida de PC (en la Odin, un único aviso en los primeros 15 s).
+- **Vibración**: por efecto de sonido (`Rumble.ForSound`: golpes, caídas, impactos) y por temblor de pantalla
+  (`GameField.mWorldShakeTime` / `mGroundShakeTime`, leídos por reflexión cada fotograma).
+- **Botones C y Z** (Retroid Pocket Classic): botones 13 y 14 del juego (`JoypadState` admite 16); también por red.
+- **Táctiles**: arte del usuario sin rótulos (`tools/make_touch.py` rehace el borde concéntrico del botón donde iban
+  GOLPE/SALTO/ESPECIAL). Cruceta: entera semitransparente y opaco solo el lado pulsado.
+- **Launcher** en castellano/inglés (`FnrPort.Lang`, según el idioma del sistema), música propia en bucle
+  (`res/raw/launcher_theme.ogg`), pestaña de logros (`AchievementsActivity`), icono rehecho sin cortar los laterales.
+- Workflow: sin artefactos (la APK va solo a la release).

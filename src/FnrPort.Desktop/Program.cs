@@ -36,6 +36,7 @@ public static class Program
                 case "--fullscreen": fullscreen = true; break;
                 case "--format": format = int.Parse(args[++i]); break;
                 case "--net-host": sNetHost = true; break;
+                case "--unlocked": sUnlocked = true; break;
                 case "--no-audio": noAudio = true; break;
                 case "--audio-wav": audioWav = Path.GetFullPath(args[++i]); break;
                 case "--frames": frames = int.Parse(args[++i]); break;
@@ -47,7 +48,7 @@ public static class Program
                     {
                         var p = s.Split(':');
                         long f = long.Parse(p[0]);
-                        int k = (int)typeof(GameKey).GetField(p[1]).GetValue(null);
+                        var fi = typeof(GameKey).GetField(p[1]); int k = fi != null ? (int)fi.GetValue(null) : p[1].Length == 1 ? GameKey.A + (char.ToLower(p[1][0]) - 'a') : int.Parse(p[1]);
                         int hold = p.Length > 2 ? int.Parse(p[2]) : 6;
                         keys.Add((f, k, true)); keys.Add((f + hold, k, false));
                     }
@@ -63,7 +64,7 @@ public static class Program
     }
 
     static int sFormat;
-    static bool sNetHost;
+    static bool sNetHost, sUnlocked;
 
     static int Run(string gameDir, string data, int scale, bool fullscreen, int w, int h, int frames, string outDir,
         HashSet<long> shots, List<(long frame, int key, bool down)> keys, FnrPort.Audio.AudioOutput audio)
@@ -86,7 +87,9 @@ public static class Program
         {
             GameDir = gameDir,
             CacheDir = Path.Combine(data, "cache"),
-            SaveFile = Path.Combine(data, "savedata", "data.sav"),
+            SaveFile = Path.Combine(data, "savedata", sUnlocked ? "desbloqueado" : "", "data.sav"),
+            AllContent = sUnlocked,
+            AchievementsFile = Path.Combine(data, "logros.txt"),
             WindowScale = scale,
             ScreenFormat = sFormat,
             NetHost = sNetHost,

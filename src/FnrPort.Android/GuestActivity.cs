@@ -107,6 +107,7 @@ public class GuestActivity : Activity, ISurfaceHolderCallback, IPadSink
                 if (p.X) b |= (int)NetSession.Btn.X; if (p.Y) b |= (int)NetSession.Btn.Y;
                 if (p.LB) b |= (int)NetSession.Btn.LB; if (p.RB) b |= (int)NetSession.Btn.RB;
                 if (p.Start) b |= (int)NetSession.Btn.Start; if (p.Back) b |= (int)NetSession.Btn.Back;
+                if (p.C) b |= (int)NetSession.Btn.C; if (p.Z) b |= (int)NetSession.Btn.Z;
             }
         return b;
     }
@@ -133,7 +134,7 @@ public class GuestActivity : Activity, ISurfaceHolderCallback, IPadSink
             {
                 RunOnUiThread(() =>
                 {
-                    Toast.MakeText(this, "Se ha cortado la conexión con el anfitrión", ToastLength.Long).Show();
+                    Toast.MakeText(this, L.T("Se ha cortado la conexión con el anfitrión", "The connection with the host was lost"), ToastLength.Long).Show();
                     Finish();
                 });
                 break;
@@ -174,8 +175,8 @@ public class GuestActivity : Activity, ISurfaceHolderCallback, IPadSink
                 lastInfo = now;
                 bool waiting = now - lastFrame > 700;
                 int ping = NetSession.PingMs;
-                string t = waiting ? "Esperando al anfitrión..." : (ping >= 0 ? $"En red · {ping} ms" : "En red");
-                t += "   (salir: Atrás, o SELECT + START 1,5 s)";
+                string t = waiting ? L.T("Esperando al anfitrión...", "Waiting for the host...") : (ping >= 0 ? L.T("En red", "Online") + $" · {ping} ms" : L.T("En red", "Online"));
+                t += L.T("   (salir: Atrás, o SELECT + START 1,5 s)", "   (exit: Back, or SELECT + START 1.5 s)");
                 RunOnUiThread(() => mInfo.Text = t);
             }
             Thread.Sleep(got ? 1 : 4);

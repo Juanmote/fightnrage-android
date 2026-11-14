@@ -15,13 +15,16 @@ public partial class MainActivity
     {
         done = true;
         bool installed = GameLauncher.Validate(GameDir) == null;
-        var nc = T.Card(mRoot, "Juego en red (2 jugadores)");
-        if (installed) nc.AddView(T.Button("Crear partida (anfitrión)", false, HostGame, !mBusy));
-        nc.AddView(T.Button("Unirse en la misma wifi", false, JoinWifi, !mBusy));
-        nc.AddView(T.Button("Unirse por internet (código o IP)", false, AskCode, !mBusy));
-        nc.AddView(T.Text("Quien crea la partida juega con su copia del juego y ve arriba su IP de la wifi y un código de 8 letras para internet. " +
+        var nc = T.Card(mRoot, L.T("Juego en red (2 jugadores)", "Netplay (2 players)"));
+        if (installed) nc.AddView(T.Button(L.T("Crear partida (anfitrión)", "Host a game"), false, HostGame, !mBusy));
+        nc.AddView(T.Button(L.T("Unirse en la misma wifi", "Join on the same wifi"), false, JoinWifi, !mBusy));
+        nc.AddView(T.Button(L.T("Unirse por internet (código o IP)", "Join over the internet (code or IP)"), false, AskCode, !mBusy));
+        nc.AddView(T.Text(L.T("Quien crea la partida juega con su copia del juego y ve arriba su IP de la wifi y un código de 8 letras para internet. " +
             "El otro no necesita el juego: ve la imagen, oye el sonido y juega con su mando o los táctiles como un jugador más " +
-            "(en el juego, que pulse START para entrar). Las dos consolas necesitan esta misma versión de la app.", 13, LauncherTheme.MUTED));
+            "(en el juego, que pulse START para entrar). Las dos consolas necesitan esta misma versión de la app.",
+            "Whoever hosts plays with their copy of the game and sees their wifi IP and an 8-letter internet code at the top. " +
+            "The other player doesn't need the game: they see the picture, hear the sound and play with their gamepad or the touch controls as one more player " +
+            "(in the game, press START to join). Both consoles need this same version of the app."), 13, LauncherTheme.MUTED));
     }
 
     void HostGame()
@@ -34,7 +37,7 @@ public partial class MainActivity
     void JoinWifi()
     {
         mBusy = true; Refresh();
-        mStatus.Text = "Buscando partidas en la wifi...";
+        mStatus.Text = L.T("Buscando partidas en la wifi...", "Looking for games on the wifi...");
         WifiLock.Acquire(this);
         Task.Run(() =>
         {
@@ -48,8 +51,10 @@ public partial class MainActivity
                 RunOnUiThread(() =>
                 {
                     mBusy = false; Refresh();
-                    mStatus.Text = "No se ha encontrado ninguna partida en esta wifi. ¿Ha pulsado el otro «Crear partida»? " +
-                        "Si no aparece, usa «Unirse por internet» y escribe la IP que ve él arriba.";
+                    mStatus.Text = L.T("No se ha encontrado ninguna partida en esta wifi. ¿Ha pulsado el otro «Crear partida»? " +
+                        "Si no aparece, usa «Unirse por internet» y escribe la IP que ve él arriba.",
+                        "No game found on this wifi. Did the other player press \"Host a game\"? " +
+                        "If it doesn't show up, use \"Join over the internet\" and type the IP they see at the top.");
                 });
                 return;
             }
@@ -64,23 +69,23 @@ public partial class MainActivity
         et.SetSingleLine(true);
         et.InputType = InputTypes.ClassText | InputTypes.TextFlagCapCharacters | InputTypes.TextFlagNoSuggestions;
         new AlertDialog.Builder(this)
-            .SetTitle("Unirse a una partida")
-            .SetMessage("Escribe el código de 8 letras que ve el anfitrión arriba de su pantalla (o su IP).")
+            .SetTitle(L.T("Unirse a una partida", "Join a game"))
+            .SetMessage(L.T("Escribe el código de 8 letras que ve el anfitrión arriba de su pantalla (o su IP).", "Type the 8-letter code the host sees at the top of their screen (or their IP)."))
             .SetView(et)
-            .SetPositiveButton("Conectar", (s, e) =>
+            .SetPositiveButton(L.T("Conectar", "Connect"), (s, e) =>
             {
                 string txt = et.Text?.Trim() ?? "";
                 if (!Inet.Target(txt, out string host, out int port))
                 {
-                    Toast.MakeText(this, "Ese código no es válido. Revisa las letras.", ToastLength.Long).Show();
+                    Toast.MakeText(this, L.T("Ese código no es válido. Revisa las letras.", "That code is not valid. Check the letters."), ToastLength.Long).Show();
                     return;
                 }
                 prefs.Edit().PutString("net_last_code", txt).Apply();
                 mBusy = true; Refresh();
-                mStatus.Text = "Conectando con " + txt + "...";
+                mStatus.Text = L.T("Conectando con ", "Connecting to ") + txt + "...";
                 Task.Run(() => Connect(host, port));
             })
-            .SetNegativeButton("Cancelar", (s, e) => { })
+            .SetNegativeButton(L.T("Cancelar", "Cancel"), (s, e) => { })
             .Show();
     }
 
@@ -93,7 +98,7 @@ public partial class MainActivity
             mBusy = false; Refresh();
             if (!ok)
             {
-                mStatus.Text = "No se ha podido entrar: " + NetSession.LastError;
+                mStatus.Text = L.T("No se ha podido entrar: ", "Could not join: ") + NetSession.LastError;
                 return;
             }
             StartActivity(new Intent(this, typeof(GuestActivity)));

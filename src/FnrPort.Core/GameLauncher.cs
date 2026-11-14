@@ -30,6 +30,8 @@ public static class GameLauncher
         public bool NetHost;            // crear una partida en red (anfitrión)        // 0 = 16:9, 1 = 4:3, 2 = 8:7 (recorte de laterales)
         public object Audio;            // IAudioEngine propio (object para no cargar el exe antes de tiempo); tiene prioridad
         public FnrPort.Audio.AudioOutput AudioOutput; // salida de la plataforma; null y sin Audio = sin sonido
+        public bool AllContent;         // perfil con todo desbloqueado (no guarda logros)
+        public string AchievementsFile; // dónde guardar los logros (null = no se guardan)
         public string[] Args = Array.Empty<string>();
         public Action<object> ConfigureCore; // recibe el PortCore
     }
@@ -147,6 +149,8 @@ public static class GameLauncher
     {
         Directory.SetCurrentDirectory(o.GameDir);
         sSavePath = o.SaveFile;
+        GameHooks.AllContent = o.AllContent;
+        Achievements.File = o.AllContent ? null : o.AchievementsFile;
 
         BeatEmUpGame.Program.STEAM_VERSION = true;   // lo mismo que hace el launcher de GOG
         BeatEmUpGame.Program.VSYNC = o.Vsync;
@@ -186,7 +190,9 @@ public static class GameLauncher
                 if (i == 4) StoreSave();
                 return null;
             }
-            // Constants.REQ = logros de GOG/Steam: aquí no hay plataforma de logros.
+            // Constants.REQ = logros de GOG/Steam: el port los guarda en la consola (no en el perfil desbloqueado).
+            var ty = obj?.GetType();
+            if (ty != null && ty.IsEnum && ty.Name == "REQ") { if (!GameHooks.AllContent) Achievements.Report(obj.ToString()); return null; }
         }
         catch (Exception ex) { Console.WriteLine("[FnrPort] ExternalCall: " + ex); }
         return null;
@@ -196,6 +202,35 @@ public static class GameLauncher
     public static Func<string, string> Clipboard;
 
     static string LoadSave()
+    {
+        string xml = LoadSaveRaw();
+        return MigratePadDefaults(xml);
+    }
+
+    /// <summary>
+    /// Una vez por partida: los mandos que se guardaron con la configuración por defecto antigua
+    /// (X golpe, A salto, B especial) pasan a la nueva del port (Y golpe, B salto, A especial).
+    /// Si alguien se los había cambiado a mano, no se tocan.
+    /// </summary>
+    static string MigratePadDefaults(string xml)
+    {
+        if (string.IsNullOrEmpty(xml) || sSavePath == null) return xml;
+        string mark = sSavePath + ".pad2";
+        if (File.Exists(mark)) return xml;
+        int n = 0;
+        string r = System.Text.RegularExpressions.Regex.Replace(xml, "<InputProfile [^>]*>", m =>
+        {
+            string e = m.Value;
+            if (!e.Contains("is_keyboard=\"false\"") || !e.Contains("attack=\"2\"") || !e.Contains("jump=\"0\"") || !e.Contains("special=\"1\"")) return e;
+            n++;
+            return e.Replace("attack=\"2\"", "attack=\"3\"").Replace("jump=\"0\"", "jump=\"1\"").Replace("special=\"1\"", "special=\"0\"");
+        });
+        try { File.WriteAllText(mark, DateTime.Now.ToString("s")); } catch { }
+        if (n > 0) Console.WriteLine($"[FnrPort] {n} mando(s) pasados a la configuración nueva (Y golpe, B salto, A especial)");
+        return r;
+    }
+
+    static string LoadSaveRaw()
     {
         if (sSavePath == null || !File.Exists(sSavePath)) return "";
         try

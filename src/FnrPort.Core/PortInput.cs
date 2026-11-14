@@ -11,6 +11,7 @@ public struct PadSnapshot
     public bool Connected;
     public string Name;
     public bool A, B, X, Y, LB, RB, Back, Start, Guide, LS, RS;
+    public bool C, Z; // mandos de seis botones (Retroid Pocket Classic, Saturn...): botones 13 y 14 del juego
     public bool DUp, DDown, DLeft, DRight;
     public float LX, LY, RX, RY, LT, RT; // ejes -1..1, gatillos 0..1
 }
@@ -118,6 +119,7 @@ public class PortInput : IInputEngine
             st.SetButtonState(8u, p.Guide);
             st.SetButtonState(11u, p.LT != 0f); st.SetButtonState(12u, p.RT != 0f);
             st.SetButtonState(9u, p.LS); st.SetButtonState(10u, p.RS);
+            st.SetButtonState(13u, p.C); st.SetButtonState(14u, p.Z);
             mPads[i] = st;
         }
     }

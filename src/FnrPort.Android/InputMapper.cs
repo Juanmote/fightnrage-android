@@ -39,6 +39,8 @@ static class InputMapper
                     case Keycode.ButtonB: p.B = down; break;
                     case Keycode.ButtonX: p.X = down; break;
                     case Keycode.ButtonY: p.Y = down; break;
+                    case Keycode.ButtonC: p.C = down; break;
+                    case Keycode.ButtonZ: p.Z = down; break;
                     case Keycode.ButtonL1: p.LB = down; break;
                     case Keycode.ButtonR1: p.RB = down; break;
                     case Keycode.ButtonL2: p.LT = down ? 1f : 0f; break;
@@ -72,7 +74,7 @@ static class InputMapper
 
     static bool IsPadKey(Keycode k) => k switch
     {
-        Keycode.ButtonA or Keycode.ButtonB or Keycode.ButtonX or Keycode.ButtonY or Keycode.ButtonL1 or Keycode.ButtonR1 or
+        Keycode.ButtonA or Keycode.ButtonB or Keycode.ButtonX or Keycode.ButtonY or Keycode.ButtonC or Keycode.ButtonZ or Keycode.ButtonL1 or Keycode.ButtonR1 or
         Keycode.ButtonL2 or Keycode.ButtonR2 or Keycode.ButtonThumbl or Keycode.ButtonThumbr or Keycode.ButtonStart or
         Keycode.ButtonSelect or Keycode.ButtonMode or Keycode.DpadUp or Keycode.DpadDown or Keycode.DpadLeft or Keycode.DpadRight or Keycode.Back => true,
         _ => false

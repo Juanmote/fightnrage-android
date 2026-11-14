@@ -120,15 +120,15 @@ public static class Inet
         string c = Code;
         return sState switch
         {
-            State.Working => "Internet: preparando el código...",
-            State.Ok => "Código para internet: " + c,
-            State.Relay => "Código para internet: " + c + " (por el servidor intermedio " + RelayHost + ")",
-            State.Vpn => "Código para la VPN (Tailscale...): " + c,
-            State.Manual => "Código para internet: " + c + ". El router no tiene UPnP: abre en él el puerto TCP " + BasePort + " a esta consola",
-            State.Cgnat => "Internet: tu operador comparte la IP (CGNAT). Que cree la partida el otro, o usad Tailscale",
-            State.Double => "Internet: hay dos routers en cadena. Abre el TCP " + BasePort + " en el del operador, o usad Tailscale",
-            State.Mobile => "Internet: con datos móviles nadie puede entrar. Únete tú a la partida del otro, o usad Tailscale",
-            State.Fail => "Internet: no hay conexión",
+            State.Working => Lang.T("Internet: preparando el código...", "Internet: preparing the code..."),
+            State.Ok => Lang.T("Código para internet: ", "Internet code: ") + c,
+            State.Relay => Lang.T("Código para internet: ", "Internet code: ") + c + Lang.T(" (por el servidor intermedio ", " (through the relay server ") + RelayHost + ")",
+            State.Vpn => Lang.T("Código para la VPN (Tailscale...): ", "Code for the VPN (Tailscale...): ") + c,
+            State.Manual => Lang.T("Código para internet: ", "Internet code: ") + c + Lang.T(". El router no tiene UPnP: abre en él el puerto TCP ", ". The router has no UPnP: forward TCP port ") + BasePort + Lang.T(" a esta consola", " to this console"),
+            State.Cgnat => Lang.T("Internet: tu operador comparte la IP (CGNAT). Que cree la partida el otro, o usad Tailscale", "Internet: your provider shares your IP (CGNAT). Let the other player host, or use Tailscale"),
+            State.Double => Lang.T("Internet: hay dos routers en cadena. Abre el TCP ", "Internet: there are two routers in a row. Forward TCP ") + BasePort + Lang.T(" en el del operador, o usad Tailscale", " on the provider's one, or use Tailscale"),
+            State.Mobile => Lang.T("Internet: con datos móviles nadie puede entrar. Únete tú a la partida del otro, o usad Tailscale", "Internet: nobody can join over mobile data. Join the other player's game instead, or use Tailscale"),
+            State.Fail => Lang.T("Internet: no hay conexión", "Internet: no connection"),
             _ => "",
         };
     }

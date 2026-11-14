@@ -279,6 +279,7 @@ namespace BeatEmUpGame
         public static bool STEAM_VERSION;
         public static bool VSYNC;
         public static bool DISABLED_SETTING_STORAGE;
+        public static bool ENABLED_ALL_CONTENT;
         public static int Run(SebaGames.Framework.ICoreEngine aEngineInstance, Func<object, object> aExternalCall, string aSaveData, string[] args) => throw null;
     }
     public static class ExternalCommands

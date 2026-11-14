@@ -32,6 +32,34 @@ jobs:
       - name: Comprobar que el backend compila (escritorio)
         run: dotnet build src/FnrPort.Desktop -c Release
 
+      - name: Logros de Steam (nombres, descripciones e iconos)
+        continue-on-error: true
+        run: |
+          mkdir -p src/FnrPort.Android/Assets/achievements
+          python3 - <<'PY'
+          import re, json, urllib.request
+          d = 'src/FnrPort.Android/Assets/achievements/'
+          def page(lang):
+              req = urllib.request.Request('https://steamcommunity.com/stats/674520/achievements/?l=' + lang, headers={'User-Agent': 'Mozilla/5.0'})
+              return urllib.request.urlopen(req, timeout=30).read().decode('utf-8', 'replace').replace('\\"', '"')
+          pat = r'"api_name":"(\w+)","name":"(.*?)","description":"(.*?)".*?"icon_achieved":"(\w+\.jpg)","icon_unachieved":"(\w+\.jpg)"'
+          en = re.findall(pat, page('english'))
+          es = {m[0]: m for m in re.findall(pat, page('spanish'))}
+          base = 'https://shared.fastly.steamstatic.com/community_assets/images/apps/674520/'
+          rows = []
+          for api, name, desc, on, off in en:
+              for fn, suf in ((on, ''), (off, '_off')):
+                  req = urllib.request.Request(base + fn, headers={'User-Agent': 'Mozilla/5.0'})
+                  open(d + api + suf + '.jpg', 'wb').write(urllib.request.urlopen(req, timeout=30).read())
+              e = es.get(api, (api, name, desc))
+              def dec(s):
+                  try: return json.loads('"' + s.replace('"', '\\"') + '"')
+                  except Exception: return s
+              rows.append('\t'.join([api, dec(name), dec(desc), dec(e[1]), dec(e[2])]))
+          open(d + 'list.tsv', 'w', encoding='utf-8').write('\n'.join(rows) + '\n')
+          print('\n'.join(rows)); print('logros:', len(rows))
+          PY
+
       - name: Restaurar
         working-directory: src/FnrPort.Android
         run: dotnet restore -r android-arm64
@@ -73,11 +101,6 @@ jobs:
           grep -c "\.dll" contenido.txt
           mkdir -p salida
           cp "$apk" "salida/FightNRage-Android-$(git rev-parse --short HEAD).apk"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: FightNRage-Android
-          path: salida/*.apk
 
       - name: Publicar release
         env:

@@ -21,13 +21,30 @@ Si algo falla, el registro está en `Android/data/com.juanmote.fightnrage/files/
 
 | | |
 |---|---|
-| Gráficos (OpenGL ES, shaders, efecto CRT) | ✅ probado en PC con el backend nuevo |
-| Mando (Android) / teclado | ✅ implementado, pendiente de probar en consola |
+| Gráficos (OpenGL ES, shaders, efecto CRT) | ✅ |
+| Mando / teclado | ✅ probado en la Odin 3 |
 | Partidas (compatibles con PC) | ✅ |
 | Sonido (efectos y música con bucles) | ✅ |
-| Controles táctiles (provisionales) | 🧪 |
-| Juego en red (wifi e internet) | 🧪 probado en PC |
-| Controles táctiles | ⏳ fase 3 |
+| Juego en red (wifi e internet) | 🧪 |
+| Perfiles: principal y «todo desbloqueado» | 🧪 v0.1.12 |
+| Logros de Steam en el launcher (guardados en la consola) | 🧪 v0.1.12 |
+| Vibración (golpes, caídas, temblores) | 🧪 v0.1.12 |
+| Controles táctiles con arte propio | 🧪 v0.1.12 |
+| Launcher en castellano/inglés con música propia | 🧪 v0.1.12 |
+
+### Añadidos del port
+
+- **Perfiles**: «Principal» (la partida de siempre, `savedata/data.sav`) y «Todo desbloqueado»
+  (`savedata/desbloqueado/data.sav`, con el interruptor del propio juego `ENABLED_ALL_CONTENT`: todo lo de la
+  tienda conseguido; no da logros).
+- **Logros**: los 20 de Steam con nombre, descripción e icono (los baja el workflow de la web de Steam), con fecha.
+  Los de una partida importada de PC aparecen al jugar con ella. No se sincronizan con Steam.
+- **Mando**: de serie Y golpe, B salto, A especial (como en la Odin). En *Configure Controls*: SELECT vuelve a
+  configurar y START acepta. Los botones C y Z (Retroid Pocket Classic) se pueden asignar.
+- **Vibración** (el juego no tiene): golpes, caídas y temblores de pantalla; vibra el mando si tiene motor.
+- **Créditos**: «- Ported by Juanmote -» al final de la pantalla de créditos y en el título.
+- **Launcher** en castellano o inglés según el idioma del sistema, con una canción propia
+  (`tools/compose_launcher_theme.py`, se puede quitar en el launcher).
 
 Detalles técnicos en [docs/ANALISIS.md](docs/ANALISIS.md).
 

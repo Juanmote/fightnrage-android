@@ -69,7 +69,7 @@ public class GameActivity : Activity, ISurfaceHolderCallback
     }
 
     protected override void OnPause() { base.OnPause(); sHost?.SetPaused(true); sAudio?.SetPaused(true); }
-    protected override void OnResume() { base.OnResume(); sHost?.SetPaused(false); sAudio?.SetPaused(false); HideSystemUi(); }
+    protected override void OnResume() { base.OnResume(); sHost?.SetPaused(false); sAudio?.SetPaused(false); HideSystemUi(); LauncherMusic.Update(this); }
 
     // ------------------------------------------------------------ superficie
 
@@ -107,8 +107,8 @@ public class GameActivity : Activity, ISurfaceHolderCallback
                 RunOnUiThread(() =>
                 {
                     new AlertDialog.Builder(this).SetTitle("Error")
-                        .SetMessage(ex.Message + "\n\nEn el launcher pulsa «Guardar registro en Descargas» y pásame el archivo.")
-                        .SetPositiveButton("Cerrar", (s, e) => Finish()).SetCancelable(false).Show();
+                        .SetMessage(ex.Message + L.T("\n\nEn el launcher pulsa «Guardar registro en Descargas» y pásame el archivo.", "\n\nIn the launcher, press \"Save log to Downloads\" and send me the file."))
+                        .SetPositiveButton(L.T("Cerrar", "Close"), (s, e) => Finish()).SetCancelable(false).Show();
                 });
                 sRunning = false; sThread = null;
                 return;
@@ -123,12 +123,20 @@ public class GameActivity : Activity, ISurfaceHolderCallback
     {
         sHost.OnPausedInGameThread = GameLauncher.StoreSave;
         var cfg = Settings.Load(this);
+        Haptics.Init(this);
+        FnrPort.Rumble.Strength = cfg.Vibration / 100f;
+        FnrPort.Rumble.Sink = cfg.Vibration > 0 ? new Action<int, int>(Haptics.Vibrate) : null;
+        mGameStart = Java.Lang.JavaSystem.CurrentTimeMillis();
+        mImported = 0;
+        FnrPort.Achievements.OnUnlocked = OnAchievement;
         sAudio = cfg.Sound ? new AudioTrackOutput() : null;
         GameLauncher.Run(sHost, new GameLauncher.Options
         {
             GameDir = gameDir,
             CacheDir = Path.Combine(CacheDir.AbsolutePath, "exe"),
-            SaveFile = Path.Combine(files, "savedata", "data.sav"),
+            SaveFile = Settings.SavePath(this, cfg.Profile),
+            AllContent = cfg.Profile == 1,
+            AchievementsFile = Settings.AchievementsPath(this),
             WindowScale = scale,
             ScreenFormat = cfg.Format,
             NetHost = sNetHost,
@@ -136,6 +144,35 @@ public class GameActivity : Activity, ISurfaceHolderCallback
             AudioOutput = sAudio,
         });
         sAudio = null;
+        FnrPort.Rumble.Sink = null;
+        FnrPort.Achievements.OnUnlocked = null;
+    }
+
+    // ------------------------------------------------------------ logros: aviso encima del juego
+
+    static long mGameStart;
+    static int mImported;
+
+    void OnAchievement(string id)
+    {
+        long now = Java.Lang.JavaSystem.CurrentTimeMillis();
+        // Al cargar la partida el juego vuelve a anunciar los que ya tenía (p. ej. una partida importada de PC):
+        // en los primeros segundos no se avisa uno a uno, sino con un único mensaje.
+        if (now - mGameStart < 15000)
+        {
+            if (mImported++ == 0)
+                new Handler(Looper.MainLooper).PostDelayed(() =>
+                {
+                    if (!IsFinishing) Toast.MakeText(this, L.T($"🏆 {mImported} logro(s) recuperados de tu partida", $"🏆 {mImported} achievement(s) recovered from your save"), ToastLength.Long).Show();
+                }, 4000);
+            return;
+        }
+        var info = AchievementInfo.Get(this, id);
+        RunOnUiThread(() =>
+        {
+            Haptics.Vibrate(160, 255);
+            Toast.MakeText(this, L.T("🏆 Logro conseguido: ", "🏆 Achievement unlocked: ") + info.Name, ToastLength.Long).Show();
+        });
     }
 
     // ------------------------------------------------------------ juego en red (anfitrión): avisos encima del juego
@@ -149,8 +186,8 @@ public class GameActivity : Activity, ISurfaceHolderCallback
             if (IsFinishing || IsDestroyed) return;
             int ev = FnrPort.Net.NetSession.HostEvent();
             long now = Java.Lang.JavaSystem.CurrentTimeMillis();
-            if (ev == 1) { eventText = "Ha entrado el jugador en red"; eventUntil = now + 4000; }
-            if (ev == 2) { eventText = "El jugador en red se ha ido"; eventUntil = now + 4000; }
+            if (ev == 1) { eventText = L.T("Ha entrado el jugador en red", "The online player has joined"); eventUntil = now + 4000; }
+            if (ev == 2) { eventText = L.T("El jugador en red se ha ido", "The online player has left"); eventUntil = now + 4000; }
             string t = now < eventUntil ? eventText : FnrPort.Net.NetSession.HostStatus();
             mNetInfo.Text = t;
             mNetInfo.Visibility = string.IsNullOrEmpty(t) ? ViewStates.Gone : ViewStates.Visible;
@@ -164,7 +201,7 @@ public class GameActivity : Activity, ISurfaceHolderCallback
     public override bool DispatchKeyEvent(KeyEvent e)
     {
         if (sHost == null) return base.DispatchKeyEvent(e);
-        if (InputMapper.IsPad(e)) mTouch?.OnPhysicalPadInput();
+        if (InputMapper.IsPad(e)) { mTouch?.OnPhysicalPadInput(); Haptics.UsePad(e.Device); }
         if (InputMapper.HandleKey(sHost, e)) return true;
         return base.DispatchKeyEvent(e);
     }

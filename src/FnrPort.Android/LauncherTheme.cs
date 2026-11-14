@@ -64,7 +64,7 @@ sealed class LauncherTheme
         title.LetterSpacing = 0.05f;
         Fire(title);
         root.AddView(title);
-        var sub = Text("PORT ANDROID  ·  TU COPIA DE GOG O STEAM", 19, TEXT);
+        var sub = Text(L.T("PORT ANDROID  ·  TU COPIA DE GOG O STEAM", "ANDROID PORT  ·  YOUR GOG OR STEAM COPY"), 19, TEXT);
         sub.Typeface = FontTitle;
         sub.LetterSpacing = 0.06f;
         Fire(sub);

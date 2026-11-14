@@ -75,6 +75,7 @@ public class PortCore : ICoreEngine
     public int Initialize(AppDescriptor d)
     {
         mDesc = d;
+        GameHooks.OnEngineInitialize();
         Console.WriteLine($"[FnrPort] Ventana {d.DisplayWidth}x{d.DisplayHeight}, superficie {d.MainSurfaceWidth}x{d.MainSurfaceHeight}");
         mHost.CreateWindow(d.Caption, (int)d.DisplayWidth, (int)d.DisplayHeight);
         Renderer.Initialize();
@@ -137,7 +138,7 @@ public class PortCore : ICoreEngine
         {
             mAccum -= mIdealDelta;
             if (n == 0) mEnableRender = true;
-            if (OnUpdate != null && !App.Inst.IgnoreCurrentFrameSkip) OnUpdate((float)mIdealDelta);
+            if (OnUpdate != null && !App.Inst.IgnoreCurrentFrameSkip) { OnUpdate((float)mIdealDelta); GameHooks.Tick(); }
             if (mClosed) return;
             n++;
             if (n - 1 > mMaxFrameSkip || mAccum < mIdealDelta * 1.5) break;

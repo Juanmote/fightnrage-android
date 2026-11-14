@@ -39,7 +39,7 @@ public static class NetSession
     public enum Mode { Off, Host, Search, Guest }
     /// <summary>Bits de los botones del invitado.</summary>
     [Flags]
-    public enum Btn : ushort { Up = 1, Down = 2, Left = 4, Right = 8, A = 16, B = 32, X = 64, Y = 128, LB = 256, RB = 512, Start = 1024, Back = 2048 }
+    public enum Btn : ushort { Up = 1, Down = 2, Left = 4, Right = 8, A = 16, B = 32, X = 64, Y = 128, LB = 256, RB = 512, Start = 1024, Back = 2048, C = 4096, Z = 8192 }
 
     static readonly object sLock = new();
     static volatile Mode sMode;
@@ -343,6 +343,7 @@ public static class NetSession
         p.DUp = (b & (int)Btn.Up) != 0; p.DDown = (b & (int)Btn.Down) != 0; p.DLeft = (b & (int)Btn.Left) != 0; p.DRight = (b & (int)Btn.Right) != 0;
         p.A = (b & (int)Btn.A) != 0; p.B = (b & (int)Btn.B) != 0; p.X = (b & (int)Btn.X) != 0; p.Y = (b & (int)Btn.Y) != 0;
         p.LB = (b & (int)Btn.LB) != 0; p.RB = (b & (int)Btn.RB) != 0; p.Start = (b & (int)Btn.Start) != 0; p.Back = (b & (int)Btn.Back) != 0;
+        p.C = (b & (int)Btn.C) != 0; p.Z = (b & (int)Btn.Z) != 0;
         return true;
     }
 
@@ -515,10 +516,10 @@ public static class NetSession
         try
         {
             var addrs = Dns.GetHostAddresses(host);
-            if (addrs.Length == 0) { LastError = "No se encuentra " + host; return false; }
+            if (addrs.Length == 0) { LastError = Lang.T("No se encuentra ", "Cannot find ") + host; return false; }
             s = new Socket(addrs[0].AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             var ar = s.BeginConnect(addrs[0], port, null, null);
-            if (!ar.AsyncWaitHandle.WaitOne(5000)) { s.Close(); LastError = "No contesta (" + host + ":" + port + ")"; return false; }
+            if (!ar.AsyncWaitHandle.WaitOne(5000)) { s.Close(); LastError = Lang.T("No contesta (", "No answer (") + host + ":" + port + ")"; return false; }
             s.EndConnect(ar);
             Tune(s);
             var hello = new byte[] { (byte)'F', (byte)'N', (byte)'R', (byte)'N', Version };
@@ -526,8 +527,8 @@ public static class NetSession
             s.ReceiveTimeout = 5000;
             var buf = new byte[64];
             int t = RecvMsg(s, ref buf, out _);
-            if (t == M_VERSION) { s.Close(); LastError = "El otro tiene otra versión de la app: actualizad los dos."; return false; }
-            if (t != M_BIENVENIDO) { s.Close(); LastError = "El anfitrión no ha contestado."; return false; }
+            if (t == M_VERSION) { s.Close(); LastError = Lang.T("El otro tiene otra versión de la app: actualizad los dos.", "The other console has a different version of the app: update both."); return false; }
+            if (t != M_BIENVENIDO) { s.Close(); LastError = Lang.T("El anfitrión no ha contestado.", "The host did not answer."); return false; }
             s.ReceiveTimeout = 0;
         }
         catch (Exception ex) { try { s?.Close(); } catch { } LastError = ex.Message; return false; }
@@ -680,8 +681,8 @@ public static class NetSession
         if (sMode != Mode.Host) return "";
         if (sConnected) return "";
         string ip = LocalIp();
-        var sb = new StringBuilder("JUEGO EN RED: esperando al invitado");
-        sb.Append(ip != null ? "  ·  Wifi: " + ip : "  ·  sin wifi");
+        var sb = new StringBuilder(Lang.T("JUEGO EN RED: esperando al invitado", "NETPLAY: waiting for the guest"));
+        sb.Append(ip != null ? "  ·  Wifi: " + ip : Lang.T("  ·  sin wifi", "  ·  no wifi"));
         string inet = Inet.StatusText();
         if (inet.Length > 0) sb.Append("\n").Append(inet);
         return sb.ToString();

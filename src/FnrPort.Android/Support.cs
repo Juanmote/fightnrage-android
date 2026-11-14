@@ -60,6 +60,7 @@ public class FnrApplication : Application
     {
         base.OnCreate();
         Log.Start(this);
+        try { FnrPort.Lang.Spanish = Java.Util.Locale.Default.Language == "es"; } catch { }
         try
         {
             Facades.Install(this, Path.Combine(CacheDir.AbsolutePath, "facades"));
@@ -104,6 +105,9 @@ sealed class Settings
     public bool TouchAuto = true; // controles táctiles automáticos (sin mando físico)
     public int TouchAlpha = 45;   // opacidad de los botones táctiles (%)
     public int TouchSize = 100;   // tamaño de los botones táctiles (%)
+    public int Profile;           // 0 = principal (desde cero), 1 = todo desbloqueado
+    public int Vibration = 70;    // 0 = sin vibración ... 100
+    public bool Music = true;     // música del launcher
 
     public static Settings Load(Context ctx)
     {
@@ -112,6 +116,7 @@ sealed class Settings
         {
             Scale = p.GetInt("scale", 0), Sound = p.GetBoolean("sound", true), Format = p.GetInt("format", 0),
             TouchAuto = p.GetBoolean("touch_auto", true), TouchAlpha = p.GetInt("touch_alpha", 45), TouchSize = p.GetInt("touch_size", 100),
+            Profile = p.GetInt("profile", 0), Vibration = p.GetInt("vibration", 70), Music = p.GetBoolean("music", true),
         };
     }
 
@@ -120,10 +125,22 @@ sealed class Settings
         var p = ctx.GetSharedPreferences("fnr", FileCreationMode.Private).Edit();
         p.PutInt("scale", Scale); p.PutBoolean("sound", Sound); p.PutInt("format", Format);
         p.PutBoolean("touch_auto", TouchAuto); p.PutInt("touch_alpha", TouchAlpha); p.PutInt("touch_size", TouchSize);
+        p.PutInt("profile", Profile); p.PutInt("vibration", Vibration); p.PutBoolean("music", Music);
         p.Apply();
     }
 
-    public static readonly string[] FormatNames = { "16:9 (original)", "4:3 (recorta los laterales)", "8:7 (recorta los laterales)" };
+    public static string[] FormatNames => new[] { "16:9 (original)", L.T("4:3 (recorta los laterales)", "4:3 (crops the sides)"), L.T("8:7 (recorta los laterales)", "8:7 (crops the sides)") };
+
+    public static string[] ProfileNames => new[] { L.T("Principal", "Main"), L.T("Todo desbloqueado", "Everything unlocked") };
+
+    /// <summary>Partida de cada perfil (formato de PC). El principal sigue en savedata/data.sav como antes.</summary>
+    public static string SavePath(Context ctx, int profile)
+    {
+        string dir = Path.Combine(ctx.GetExternalFilesDir(null).AbsolutePath, "savedata");
+        return profile == 1 ? Path.Combine(dir, "desbloqueado", "data.sav") : Path.Combine(dir, "data.sav");
+    }
+
+    public static string AchievementsPath(Context ctx) => Path.Combine(ctx.GetExternalFilesDir(null).AbsolutePath, "logros.txt");
 
     /// <summary>Resolución interna = 354x200 x escala. Igual que el PC pero tope 4 por rendimiento.</summary>
     public static int AutoScale(Context ctx)
@@ -252,4 +269,101 @@ static class WifiLock
         catch (Exception ex) { Console.WriteLine("[FnrNet] MulticastLock: " + ex.Message); }
     }
     public static void Release() { try { sLock?.Release(); } catch { } }
+}
+
+/// <summary>Textos del launcher: castellano si el sistema está en español; si no, inglés.</summary>
+static class L
+{
+    public static bool ES => FnrPort.Lang.Spanish;
+    public static string T(string es, string en) => FnrPort.Lang.T(es, en);
+}
+
+/// <summary>
+/// Música del launcher (canción propia, res/raw/launcher_theme.ogg). Suena mientras se ve alguna
+/// pantalla del launcher (contador de pantallas visibles) y se para al entrar en el juego.
+/// </summary>
+static class LauncherMusic
+{
+    static Android.Media.MediaPlayer sPlayer;
+    static int sVisible;
+
+    public static void Shown(Context ctx) { sVisible++; Update(ctx); }
+    public static void Hidden(Context ctx) { sVisible = Math.Max(0, sVisible - 1); Update(ctx); }
+
+    public static void Update(Context ctx)
+    {
+        bool on = sVisible > 0 && Settings.Load(ctx).Music;
+        try
+        {
+            if (!on) { if (sPlayer != null && sPlayer.IsPlaying) sPlayer.Pause(); return; }
+            if (sPlayer == null)
+            {
+                sPlayer = Android.Media.MediaPlayer.Create(ctx.ApplicationContext, Resource.Raw.launcher_theme);
+                if (sPlayer == null) return;
+                sPlayer.Looping = true;
+                sPlayer.SetVolume(0.6f, 0.6f);
+            }
+            if (!sPlayer.IsPlaying) sPlayer.Start();
+        }
+        catch (Exception ex) { Log.Write("Música del launcher: " + ex.Message); }
+    }
+
+    public static void Release()
+    {
+        try { sPlayer?.Release(); } catch { }
+        sPlayer = null;
+    }
+}
+
+/// <summary>
+/// Datos de los 20 logros para enseñarlos: nombre y descripción de Steam (assets/achievements/list.tsv,
+/// que baja el workflow junto con los iconos) o, si no están, un nombre sacado del identificador.
+/// </summary>
+static class AchievementInfo
+{
+    public sealed class Item { public string Id, NameEn, DescEn, NameEs, DescEs; public string Name => L.ES && !string.IsNullOrEmpty(NameEs) ? NameEs : NameEn; public string Desc => L.ES && !string.IsNullOrEmpty(DescEs) ? DescEs : DescEn; }
+
+    static System.Collections.Generic.Dictionary<string, Item> sItems;
+
+    public static Item Get(Context ctx, string id)
+    {
+        Load(ctx);
+        return sItems.TryGetValue(id, out var it) ? it : new Item { Id = id, NameEn = Pretty(id), DescEn = "" };
+    }
+
+    static void Load(Context ctx)
+    {
+        if (sItems != null) return;
+        sItems = new();
+        try
+        {
+            using var st = ctx.Assets.Open("achievements/list.tsv");
+            using var r = new StreamReader(st);
+            string line;
+            while ((line = r.ReadLine()) != null)
+            {
+                var p = line.Split('\t');
+                if (p.Length < 3) continue;
+                sItems[p[0]] = new Item { Id = p[0], NameEn = p[1], DescEn = p[2], NameEs = p.Length > 3 ? p[3] : null, DescEs = p.Length > 4 ? p[4] : null };
+            }
+        }
+        catch { }
+    }
+
+    static string Pretty(string id)
+    {
+        var w = id.Replace("_FIX_2", "").Split('_');
+        for (int i = 0; i < w.Length; i++) w[i] = w[i].Length > 0 ? w[i][0] + w[i].Substring(1).ToLowerInvariant() : w[i];
+        return string.Join(" ", w);
+    }
+
+    public static Android.Graphics.Bitmap Icon(Context ctx, string id, bool unlocked)
+    {
+        try
+        {
+            using var st = ctx.Assets.Open("achievements/" + id + (unlocked ? "" : "_off") + ".jpg");
+            return Android.Graphics.BitmapFactory.DecodeStream(st);
+        }
+        catch { return null; }
+    }
 }

@@ -75,10 +75,12 @@ public sealed class PortSound : ISound, IMusic
     readonly PortSoundInstance mInst;
     internal AudioData Data { get; private set; }
     public readonly string Name;
+    internal readonly int RumbleMs, RumbleAmp; // vibración que acompaña a este efecto (golpes, caídas...)
 
     public PortSound(PortAudioEngine engine, AudioData data, string name)
     {
         mEngine = engine; Data = data; Name = name;
+        (RumbleMs, RumbleAmp) = Rumble.ForSound(name);
         mInst = new PortSoundInstance(engine);
         mInst.ChangeSound(this);
     }
@@ -152,6 +154,7 @@ public sealed class PortSoundInstance : ISoundInstance, IMusic
         try { reader = data.CreateReader(); }
         catch (Exception ex) { Console.WriteLine($"[FnrPort] Audio: no se pudo reproducir {mSource.Name}: {ex.Message}"); return; }
         mVoice = mEngine.Mixer.Start(reader, mVolume, mPan, mPitch, mLoop);
+        if (mSource.RumbleMs > 0 && mVolume > 0.05f) Rumble.Fire(mSource.RumbleMs, mSource.RumbleAmp);
     }
 
     public void Stop()
