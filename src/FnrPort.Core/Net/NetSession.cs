@@ -13,12 +13,13 @@ namespace FnrPort.Net;
 
 /// <summary>
 /// Juego en red, mismo modelo que los ports de The Outfoxies y Streets of Rage Remake (y que Días de Furia, de
-/// Mckeijas): solo el ANFITRIÓN ejecuta el juego; manda imagen y sonido al INVITADO y recibe sus botones, que entran
-/// como un mando más (jugador 2). No puede desincronizarse y el invitado no necesita el juego.
+/// Mckeijas): solo el ANFITRIÓN ejecuta el juego; manda imagen y sonido a los INVITADOS (hasta 2: el juego admite
+/// 3 jugadores) y recibe sus botones, que entran como mandos (jugadores 2 y 3). No puede desincronizarse y los
+/// invitados no necesitan el juego. Cada invitado tiene su propia cola de envío y su propia imagen de referencia.
 ///
 /// Una conexión TCP (puerto 47830) con mensajes [tipo:1][longitud:4, big endian][datos]:
 ///   invitado -> anfitrión: HOLA "FNRN"+versión | ENTRADAS (2 bytes de botones) | PING marca | ADIOS
-///   anfitrión -> invitado: BIENVENIDO | VERSION (no coincide) | VIDEO | AUDIO | PONG marca | FIN
+///   anfitrión -> invitado: BIENVENIDO número de jugador | VERSION (no coincide) | LLENA | VIDEO | AUDIO | PONG marca | FIN
 /// VIDEO: la imagen del juego reducida a 354x200 (su resolución de pixel art) en RGB, sin pérdida: clave:1, ancho:2,
 ///   alto:2, dx:1, dy:1, banderas:1 y los datos con zlib; si clave = 0, lo comprimido es el XOR con la imagen anterior
 ///   desplazada (dx, dy): el fondo que se desliza casi no ocupa.
@@ -29,12 +30,14 @@ namespace FnrPort.Net;
 public static class NetSession
 {
     public const int Port = 47830;
-    public const int Version = 1;
+    public const int Version = 2;
+    /// <summary>Invitados a la vez (el juego admite 3 jugadores: el anfitrión y dos más).</summary>
+    public const int MaxGuests = 2;
     public const int MaxW = 354, MaxH = 200;
     const int FrameMax = MaxW * MaxH * 3;
     const int QueueLimit = 700 * 1024, SkipLimit = 140 * 1024;
     const byte M_HOLA = 1, M_ENTRADAS = 2, M_ADIOS = 4, M_PING = 5, M_BIENVENIDO = 10, M_VERSION = 12, M_VIDEO = 14, M_FIN = 16,
-        M_PONG = 17, M_AUDIO = 19;
+        M_PONG = 17, M_AUDIO = 19, M_LLENA = 20;
 
     public enum Mode { Off, Host, Search, Guest }
     /// <summary>Bits de los botones del invitado.</summary>
@@ -47,18 +50,32 @@ public static class NetSession
     static Thread sConnThread, sSendThread, sUdpThread;
     static TcpListener sListener;
     static UdpClient sUdp;
-    static Socket sClient;            // la conexión con el otro
+    static Socket sClient;            // invitado: la conexión con el anfitrión
     static Socket sOffered;           // anfitrión: conexión que llega por el servidor intermedio
-    static readonly LinkedList<(byte[] data, bool video)> sQueue = new();
-    static int sQueueBytes;
-    static bool sForceKey = true;
-    static volatile int sGuestBits;
-    static volatile int sHostEvent;   // 1 = ha entrado el invitado, 2 = se ha ido
+    static readonly Queue<int> sHostEvents = new(); // anfitrión: 10*jugador + 1 (ha entrado) / + 2 (se ha ido)
+
+    /// <summary>Anfitrión: un invitado conectado (jugador 2 o 3).</summary>
+    sealed class Peer
+    {
+        public int Slot;              // 0 o 1 (jugador 2 o 3)
+        public Socket S;
+        public volatile bool Alive = true;
+        public volatile int Bits;
+        public readonly LinkedList<(byte[] data, bool video)> Queue = new();
+        public int QueueBytes;
+        public bool ForceKey = true;
+        public readonly byte[] Ref = new byte[FrameMax], Tmp = new byte[FrameMax];
+        public int W, H;
+        public Thread Send, Recv;
+    }
+    static readonly Peer[] sPeers = new Peer[MaxGuests];
     static string sFoundIp; static long sFoundAt;
     static volatile int sPingMs = -1;
 
     public static Mode CurrentMode => sMode;
-    public static bool Connected => sConnected;
+    public static bool Connected => sMode == Mode.Host ? GuestCount > 0 : sConnected;
+    /// <summary>Anfitrión: invitados conectados ahora mismo.</summary>
+    public static int GuestCount { get { int n = 0; lock (sLock) foreach (var p in sPeers) if (p != null && p.Alive) n++; return n; } }
     public static bool IsHost => sMode == Mode.Host;
     public static int PingMs => sPingMs;
     public static bool Log = Environment.GetEnvironmentVariable("FNR_NETLOG") != null;
@@ -237,13 +254,13 @@ public static class NetSession
         {
             sListener = new TcpListener(IPAddress.Any, Port);
             sListener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            sListener.Start(2);
+            sListener.Start(4);
         }
         catch (Exception ex) { Console.WriteLine("[FnrNet] No se puede abrir el puerto " + Port + ": " + ex.Message); sListener = null; return false; }
         sUdp = UdpOpen(Port);
-        sQuit = false; sMode = Mode.Host; sForceKey = true; sHostEvent = 0;
+        sQuit = false; sMode = Mode.Host;
+        lock (sLock) { sHostEvents.Clear(); Array.Clear(sPeers); }
         sConnThread = new Thread(HostThread) { IsBackground = true, Name = "FnrNet" }; sConnThread.Start();
-        sSendThread = new Thread(SendThread) { IsBackground = true, Name = "FnrNetSend" }; sSendThread.Start();
         if (sUdp != null) { sUdpThread = new Thread(UdpThread) { IsBackground = true, Name = "FnrNetUdp" }; sUdpThread.Start(); }
         Inet.HostBegin();
         Console.WriteLine("[FnrNet] Partida creada en el puerto " + Port + " (IP local " + (LocalIp() ?? "ninguna") + ")");
@@ -253,7 +270,7 @@ public static class NetSession
     /// <summary>Servidor intermedio: una conexión de un invitado que ya está hecha.</summary>
     internal static void HostOffer(Socket s)
     {
-        if (sMode != Mode.Host || sConnected) { try { s.Close(); } catch { } return; }
+        if (sMode != Mode.Host) { try { s.Close(); } catch { } return; }
         lock (sLock) { sOffered?.Close(); sOffered = s; }
     }
 
@@ -280,21 +297,55 @@ public static class NetSession
                 int t = RecvMsg(s, ref buf, out int len);
                 if (t != M_HOLA || len < 5 || Encoding.ASCII.GetString(buf, 0, 4) != "FNRN") { s.Close(); continue; }
                 if (buf[4] != Version) { SendMsg(s, M_VERSION, new byte[] { Version }); s.Close(); continue; }
-                SendMsg(s, M_BIENVENIDO, new byte[] { 2 });
-                s.ReceiveTimeout = 0;
-                lock (sLock) { sQueue.Clear(); sQueueBytes = 0; sForceKey = true; sClient = s; sConnected = true; sGuestBits = 0; sHostEvent = 1; }
-                Console.WriteLine("[FnrNet] Ha entrado el invitado (" + s.RemoteEndPoint + ")");
-                while (!sQuit && (t = RecvMsg(s, ref buf, out len)) >= 0 && t != M_ADIOS)
+                Peer p = null;
+                lock (sLock)
                 {
-                    if (t == M_ENTRADAS && len >= 2) sGuestBits = buf[0] << 8 | buf[1];
-                    else if (t == M_PING && len == 4) Push(Packet(M_PONG, buf.AsSpan(0, 4)), false);
+                    for (int i = 0; i < MaxGuests; i++)
+                        if (sPeers[i] == null) { p = sPeers[i] = new Peer { Slot = i, S = s }; break; }
                 }
+                if (p == null) { SendMsg(s, M_LLENA, default); s.Close(); Console.WriteLine("[FnrNet] Partida llena: rechazado " + s.RemoteEndPoint); continue; }
+                SendMsg(s, M_BIENVENIDO, new byte[] { (byte)(p.Slot + 2) });
+                s.ReceiveTimeout = 0;
+                p.Recv = new Thread(() => PeerRecv(p)) { IsBackground = true, Name = "FnrNetIn" + p.Slot };
+                p.Send = new Thread(() => PeerSend(p)) { IsBackground = true, Name = "FnrNetOut" + p.Slot };
+                p.Recv.Start(); p.Send.Start();
+                lock (sLock) sHostEvents.Enqueue((p.Slot + 2) * 10 + 1);
+                Console.WriteLine($"[FnrNet] Ha entrado el jugador {p.Slot + 2} ({s.RemoteEndPoint})");
             }
-            catch (Exception ex) { if (Log) Console.WriteLine("[FnrNet] conexión: " + ex.Message); }
-            lock (sLock) { sConnected = false; sGuestBits = 0; sClient = null; sQueue.Clear(); sQueueBytes = 0; if (!sQuit) sHostEvent = 2; }
-            Console.WriteLine("[FnrNet] El invitado se ha ido");
-            try { s.Close(); } catch { }
+            catch (Exception ex) { if (Log) Console.WriteLine("[FnrNet] conexión: " + ex.Message); try { s.Close(); } catch { } }
         }
+    }
+
+    static void PeerRecv(Peer p)
+    {
+        var buf = new byte[4096];
+        try
+        {
+            int t;
+            while (!sQuit && p.Alive && (t = RecvMsg(p.S, ref buf, out int len)) >= 0 && t != M_ADIOS)
+            {
+                if (t == M_ENTRADAS && len >= 2) p.Bits = buf[0] << 8 | buf[1];
+                else if (t == M_PING && len == 4) PushTo(p, Packet(M_PONG, buf.AsSpan(0, 4)), false);
+            }
+        }
+        catch (Exception ex) { if (Log) Console.WriteLine("[FnrNet] invitado " + (p.Slot + 2) + ": " + ex.Message); }
+        DropPeer(p);
+    }
+
+    static void DropPeer(Peer p)
+    {
+        lock (sLock)
+        {
+            if (!p.Alive) return;
+            p.Alive = false; p.Bits = 0;
+            p.Queue.Clear(); p.QueueBytes = 0;
+            if (sPeers[p.Slot] == p) sPeers[p.Slot] = null;
+            if (!sQuit) sHostEvents.Enqueue((p.Slot + 2) * 10 + 2);
+            Monitor.PulseAll(sLock);
+        }
+        try { p.S.Shutdown(SocketShutdown.Both); } catch { }
+        try { p.S.Close(); } catch { }
+        Console.WriteLine($"[FnrNet] El jugador {p.Slot + 2} se ha ido");
     }
 
     static byte[] Packet(byte type, ReadOnlySpan<byte> data)
@@ -304,42 +355,46 @@ public static class NetSession
         return b;
     }
 
-    static void Push(byte[] p, bool video)
+    static void PushTo(Peer p, byte[] pk, bool video)
     {
         lock (sLock)
         {
-            sQueue.AddLast((p, video)); sQueueBytes += p.Length;
+            if (!p.Alive) return;
+            p.Queue.AddLast((pk, video)); p.QueueBytes += pk.Length;
             Monitor.PulseAll(sLock);
         }
     }
 
-    static void SendThread()
+    static void PeerSend(Peer p)
     {
         while (true)
         {
-            byte[] p; Socket s;
+            byte[] pk;
             lock (sLock)
             {
-                while (sQueue.Count == 0 && !sQuit) Monitor.Wait(sLock, 200);
-                if (sQuit) break;
-                p = sQueue.First.Value.data; sQueue.RemoveFirst(); sQueueBytes -= p.Length;
-                s = sClient;
+                while (p.Queue.Count == 0 && !sQuit && p.Alive) Monitor.Wait(sLock, 200);
+                if (sQuit || !p.Alive) break;
+                pk = p.Queue.First.Value.data; p.Queue.RemoveFirst(); p.QueueBytes -= pk.Length;
             }
-            if (s != null && sConnected)
-                try { SendAll(s, p); } catch { try { s.Shutdown(SocketShutdown.Both); } catch { } }
+            try { SendAll(p.S, pk); } catch { DropPeer(p); break; }
         }
     }
 
-    /// <summary>1 = acaba de entrar el invitado, 2 = se ha ido, 0 = nada (se consume).</summary>
-    public static int HostEvent() { lock (sLock) { int e = sHostEvent; sHostEvent = 0; return e; } }
+    /// <summary>
+    /// Avisos para el anfitrión (se consumen): 10 * jugador + 1 = ha entrado, + 2 = se ha ido (jugador 2 o 3).
+    /// 0 = nada.
+    /// </summary>
+    public static int HostEvent() { lock (sLock) return sHostEvents.Count > 0 ? sHostEvents.Dequeue() : 0; }
 
-    /// <summary>Botones del invitado como mando (para meterlo entre los mandos del anfitrión).</summary>
-    public static bool GuestPad(out PadSnapshot p)
+    /// <summary>Botones de un invitado (0 = jugador 2, 1 = jugador 3) como mando.</summary>
+    public static bool GuestPad(int slot, out PadSnapshot p)
     {
         p = default;
-        if (sMode != Mode.Host || !sConnected) return false;
-        int b = sGuestBits;
-        p.Connected = true; p.Name = "Jugador en red";
+        if (sMode != Mode.Host || slot < 0 || slot >= MaxGuests) return false;
+        var peer = sPeers[slot];
+        if (peer == null || !peer.Alive) return false;
+        int b = peer.Bits;
+        p.Connected = true; p.Name = "Jugador en red " + (slot + 2);
         p.DUp = (b & (int)Btn.Up) != 0; p.DDown = (b & (int)Btn.Down) != 0; p.DLeft = (b & (int)Btn.Left) != 0; p.DRight = (b & (int)Btn.Right) != 0;
         p.A = (b & (int)Btn.A) != 0; p.B = (b & (int)Btn.B) != 0; p.X = (b & (int)Btn.X) != 0; p.Y = (b & (int)Btn.Y) != 0;
         p.LB = (b & (int)Btn.LB) != 0; p.RB = (b & (int)Btn.RB) != 0; p.Start = (b & (int)Btn.Start) != 0; p.Back = (b & (int)Btn.Back) != 0;
@@ -348,39 +403,43 @@ public static class NetSession
     }
 
     /// <summary>¿Quiere el anfitrión una imagen este fotograma? (para no leer la pantalla si no hay nadie).</summary>
-    public static bool HostWantsFrame => sMode == Mode.Host && sConnected;
+    public static bool HostWantsFrame { get { if (sMode != Mode.Host) return false; foreach (var p in sPeers) if (p != null && p.Alive) return true; return false; } }
 
     // --- vídeo
-    static readonly byte[] vRef = new byte[FrameMax], vTmp = new byte[FrameMax];
-    static int vW, vH;
     static long vStatFrames, vStatBytes, vStatMax, vStatKeys;
 
-    /// <summary>Anfitrión: manda una imagen (RGB24, fila 0 arriba).</summary>
+    /// <summary>Anfitrión: manda una imagen (RGB24, fila 0 arriba) a cada invitado.</summary>
     public static void HostFrame(byte[] rgb, int w, int h, int flags)
     {
-        if (sMode != Mode.Host || !sConnected || w > MaxW || h > MaxH) return;
+        if (sMode != Mode.Host || w > MaxW || h > MaxH) return;
+        foreach (var peer in sPeers)
+            if (peer != null && peer.Alive) PeerFrame(peer, rgb, w, h, flags);
+    }
+
+    static void PeerFrame(Peer pr, byte[] rgb, int w, int h, int flags)
+    {
         bool key;
         lock (sLock)
         {
-            if (sQueueBytes > QueueLimit)
+            if (pr.QueueBytes > QueueLimit)
             {
-                // la red no da abasto: fuera el vídeo atrasado
-                var n = sQueue.First;
-                while (n != null) { var nx = n.Next; if (n.Value.video) { sQueueBytes -= n.Value.data.Length; sQueue.Remove(n); } n = nx; }
-                sForceKey = true;
+                // la red de este invitado no da abasto: fuera su vídeo atrasado
+                var n = pr.Queue.First;
+                while (n != null) { var nx = n.Next; if (n.Value.video) { pr.QueueBytes -= n.Value.data.Length; pr.Queue.Remove(n); } n = nx; }
+                pr.ForceKey = true;
             }
-            key = sForceKey || w != vW || h != vH;
+            key = pr.ForceKey || w != pr.W || h != pr.H;
             // aún sale lo de antes: esta imagen no se manda (la siguiente va contra la última enviada)
-            if (!key && sQueueBytes > SkipLimit) return;
-            sForceKey = false;
+            if (!key && pr.QueueBytes > SkipLimit) return;
+            pr.ForceKey = false;
         }
         int len = w * h * 3, dx = 0, dy = 0;
-        if (key) Buffer.BlockCopy(rgb, 0, vTmp, 0, len);
-        else { FindShift(rgb, vRef, w, h, out dx, out dy); XorShift(vTmp, rgb, vRef, w, h, dx, dy); }
-        Buffer.BlockCopy(rgb, 0, vRef, 0, len); vW = w; vH = h;
+        if (key) Buffer.BlockCopy(rgb, 0, pr.Tmp, 0, len);
+        else { FindShift(rgb, pr.Ref, w, h, out dx, out dy); XorShift(pr.Tmp, rgb, pr.Ref, w, h, dx, dy); }
+        Buffer.BlockCopy(rgb, 0, pr.Ref, 0, len); pr.W = w; pr.H = h;
         var ms = new MemoryStream(len / 4 + 64);
         ms.Write(new byte[13]);
-        using (var z = new ZLibStream(ms, CompressionLevel.Fastest, true)) z.Write(vTmp, 0, len);
+        using (var z = new ZLibStream(ms, CompressionLevel.Fastest, true)) z.Write(pr.Tmp, 0, len);
         var p = ms.ToArray();
         p[0] = M_VIDEO; Put32(p, 1, p.Length - 5);
         p[5] = (byte)(key ? 1 : 0); p[6] = (byte)(w >> 8); p[7] = (byte)w; p[8] = (byte)(h >> 8); p[9] = (byte)h;
@@ -390,7 +449,7 @@ public static class NetSession
             vStatFrames++; vStatBytes += p.Length; vStatMax = Math.Max(vStatMax, p.Length); if (key) vStatKeys++;
             if (vStatFrames % 300 == 0) { Console.WriteLine($"[FnrNet] vídeo: media {vStatBytes / 300} B, máx {vStatMax} B, claves {vStatKeys}"); vStatBytes = 0; vStatMax = 0; vStatKeys = 0; }
         }
-        Push(p, true);
+        PushTo(pr, p, true);
     }
 
     /// <summary>out = cur XOR ref desplazado (dx, dy); fuera de la imagen, ref vale 0. Sirve para codificar y para decodificar.</summary>
@@ -435,7 +494,7 @@ public static class NetSession
     /// <summary>Anfitrión: lo que acaba de salir del mezclador (float estéreo intercalado).</summary>
     public static void HostAudio(float[] stereo, int frames, int rate)
     {
-        if (sMode != Mode.Host || !sConnected || frames < 2) return;
+        if (!HostWantsFrame || frames < 2) return;
         int m = frames / 2;
         var p = new byte[5 + 10 + m];
         p[0] = M_AUDIO; Put32(p, 1, 10 + m);
@@ -447,7 +506,7 @@ public static class NetSession
             int l = S16((stereo[i * 4] + stereo[i * 4 + 2]) * 0.5f), r = S16((stereo[i * 4 + 1] + stereo[i * 4 + 3]) * 0.5f);
             p[15 + i] = (byte)(aEnc[0].Encode(l) | aEnc[1].Encode(r) << 4);
         }
-        Push(p, false);
+        foreach (var peer in sPeers) if (peer != null && peer.Alive) PushTo(peer, p, false);
     }
 
     static int S16(float v) => (int)Math.Clamp(v * 32767f, -32768f, 32767f);
@@ -506,6 +565,8 @@ public static class NetSession
     static readonly short[] gRing = new short[Ring * 2];
     static int gRd, gWr, gRate = 24000;
     public static string LastError;
+    /// <summary>Invitado: qué jugador es (2 o 3).</summary>
+    public static int PlayerNumber = 2;
 
     /// <summary>Entra en una partida (IP o nombre, puerto). Devuelve false si no se ha podido.</summary>
     public static bool Join(string host, int port = Port)
@@ -526,7 +587,9 @@ public static class NetSession
             SendMsg(s, M_HOLA, hello);
             s.ReceiveTimeout = 5000;
             var buf = new byte[64];
-            int t = RecvMsg(s, ref buf, out _);
+            int t = RecvMsg(s, ref buf, out int blen);
+            if (t == M_LLENA) { s.Close(); LastError = Lang.T("La partida ya tiene 3 jugadores.", "The game already has 3 players."); return false; }
+            PlayerNumber = t == M_BIENVENIDO && blen >= 1 ? buf[0] : 2;
             if (t == M_VERSION) { s.Close(); LastError = Lang.T("El otro tiene otra versión de la app: actualizad los dos.", "The other console has a different version of the app: update both."); return false; }
             if (t != M_BIENVENIDO) { s.Close(); LastError = Lang.T("El anfitrión no ha contestado.", "The host did not answer."); return false; }
             s.ReceiveTimeout = 0;
@@ -656,32 +719,33 @@ public static class NetSession
         var mode = sMode;
         if (mode == Mode.Off && sListener == null && sUdp == null && sClient == null) return;
         if (mode == Mode.Host) Inet.HostEnd();
-        try
-        {
-            if (mode == Mode.Guest && sClient != null && sConnected) SendMsg(sClient, M_ADIOS, default);
-            if (mode == Mode.Host && sClient != null && sConnected) SendMsg(sClient, M_FIN, default);
-        }
-        catch { }
+        try { if (mode == Mode.Guest && sClient != null && sConnected) SendMsg(sClient, M_ADIOS, default); } catch { }
+        Peer[] peers;
+        lock (sLock) peers = (Peer[])sPeers.Clone();
+        foreach (var pr in peers)
+            if (pr != null && pr.Alive) { try { SendMsg(pr.S, M_FIN, default); } catch { } }
         sQuit = true;
         lock (sLock) Monitor.PulseAll(sLock);
         try { sClient?.Shutdown(SocketShutdown.Both); } catch { }
         try { sListener?.Stop(); } catch { }
         try { sUdp?.Close(); } catch { }
+        foreach (var pr in peers)
+            if (pr != null) { try { pr.S.Shutdown(SocketShutdown.Both); } catch { } try { pr.S.Close(); } catch { } pr.Alive = false; pr.Send?.Join(1000); pr.Recv?.Join(1000); }
         sConnThread?.Join(2000); sSendThread?.Join(2000); sUdpThread?.Join(2000);
         sConnThread = sSendThread = sUdpThread = null;
         CloseQuiet(ref sClient);
-        lock (sLock) { sQueue.Clear(); sQueueBytes = 0; sOffered?.Close(); sOffered = null; }
+        lock (sLock) { Array.Clear(sPeers); sHostEvents.Clear(); sOffered?.Close(); sOffered = null; }
         sListener = null; sUdp = null;
-        sConnected = false; sGuestBits = 0; sMode = Mode.Off; vW = vH = 0;
+        sConnected = false; sMode = Mode.Off;
     }
 
     /// <summary>Texto de estado para el anfitrión (encima del juego).</summary>
     public static string HostStatus()
     {
         if (sMode != Mode.Host) return "";
-        if (sConnected) return "";
+        if (GuestCount > 0) return "";
         string ip = LocalIp();
-        var sb = new StringBuilder(Lang.T("JUEGO EN RED: esperando al invitado", "NETPLAY: waiting for the guest"));
+        var sb = new StringBuilder(Lang.T("JUEGO EN RED: esperando invitados (hasta 2)", "NETPLAY: waiting for guests (up to 2)"));
         sb.Append(ip != null ? "  ·  Wifi: " + ip : Lang.T("  ·  sin wifi", "  ·  no wifi"));
         string inet = Inet.StatusText();
         if (inet.Length > 0) sb.Append("\n").Append(inet);

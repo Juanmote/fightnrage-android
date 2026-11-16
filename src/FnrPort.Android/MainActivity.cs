@@ -21,7 +21,7 @@ namespace FnrPort.Droid;
     ScreenOrientation = ScreenOrientation.SensorLandscape, ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize)]
 public partial class MainActivity : Activity
 {
-    const int ReqFolder = 1, ReqSave = 2;
+    const int ReqFolder = 1, ReqSave = 2, ReqExport = 3;
     TextView mStatus;
     Settings mCfg;
     bool mBusy;
@@ -78,7 +78,17 @@ public partial class MainActivity : Activity
                   "Everything unlocked: every character, costume, mode, extra and tip in the shop already owned. It has its own separate save and doesn't earn achievements."),
             13, LauncherTheme.MUTED));
         game.AddView(T.Button(L.T("Elegir carpeta del juego", "Choose game folder"), false, PickFolder, !mBusy));
-        game.AddView(T.Button(L.T("Importar partida de PC (data.sav) a este perfil", "Import PC save (data.sav) into this profile"), false, PickSave, !mBusy));
+
+
+        var saves = T.Card(mRoot, L.T("Partidas", "Saves"));
+        saves.AddView(T.Text(L.T($"Perfil {Settings.ProfileNames[mCfg.Profile]}: " + (File.Exists(SavePath) ? "tiene partida guardada." : "sin partida todavía.") +
+            " Las partidas son las mismas que las de PC (archivo data.sav), en los dos sentidos.",
+            $"{Settings.ProfileNames[mCfg.Profile]} profile: " + (File.Exists(SavePath) ? "has a saved game." : "no saved game yet.") +
+            " Saves are the same as on PC (data.sav file), both ways."), 14, LauncherTheme.TEXT));
+        saves.AddView(T.Button(L.T("Exportar partida (guardar data.sav)", "Export save (save data.sav)"), false, PickExport, !mBusy && File.Exists(SavePath)));
+        saves.AddView(T.Button(L.T("Importar partida (elegir un data.sav)", "Import save (choose a data.sav)"), false, PickSave, !mBusy));
+        saves.AddView(T.Text(L.T("Al importar, la partida que había queda como copia (data.sav.bak). En PC (GOG) está en %USERPROFILE%\\AppData\\LocalLow\\sebagamesdev\\gog\\fightnrage\\savedata\\data.sav; en Steam, en %USERPROFILE%\\AppData\\LocalLow\\sebagamesdev\\fightnrage\\savedata\\data.sav. Para llevarla al PC, exporta, cámbiale el nombre a data.sav si hace falta y cópiala ahí.",
+            "When importing, the previous save is kept as a copy (data.sav.bak). On PC (GOG) it's in %USERPROFILE%\\AppData\\LocalLow\\sebagamesdev\\gog\\fightnrage\\savedata\\data.sav; on Steam, in %USERPROFILE%\\AppData\\LocalLow\\sebagamesdev\\fightnrage\\savedata\\data.sav. To take it to the PC, export it, rename it to data.sav if needed and copy it there."), 13, LauncherTheme.MUTED));
 
         var got = Achievements.Load(Settings.AchievementsPath(this));
         var ach = T.Card(mRoot, L.T("Logros", "Achievements"));
@@ -93,10 +103,16 @@ public partial class MainActivity : Activity
         video.AddView(T.Text(L.T("En el juego, Options → Video: «Full Screen» estira la imagen a toda la pantalla y «Windowed» la deja sin deformar (con bandas negras si hace falta). 4:3 y 8:7 recortan los laterales: se pierde un poco del marcador de los lados.",
             "In the game, Options → Video: \"Full Screen\" stretches the picture to the whole screen and \"Windowed\" keeps its shape (with black bars if needed). 4:3 and 8:7 crop the sides: a bit of the side HUD is lost."), 13, LauncherTheme.MUTED));
         video.AddView(T.Button(L.T("Sonido: ", "Sound: ") + (mCfg.Sound ? L.T("sí", "on") : L.T("no", "off")), false, () => { mCfg.Sound = !mCfg.Sound; mCfg.Save(this); Refresh(); }));
-        video.AddView(T.Button(L.T("Vibración: ", "Vibration: ") + (mCfg.Vibration == 0 ? L.T("no", "off") : mCfg.Vibration + " %"), false,
-            () => { mCfg.Vibration = mCfg.Vibration >= 100 ? 0 : mCfg.Vibration + 25 - mCfg.Vibration % 25; mCfg.Save(this); Refresh(); TestVibration(); }));
-        video.AddView(T.Text(L.T("Golpes, caídas, explosiones y temblores. Vibra el mando si tiene motor; si no, la consola.",
-            "Hits, falls, explosions and screen shakes. The gamepad vibrates if it has a motor; otherwise, the console."), 13, LauncherTheme.MUTED));
+        video.AddView(T.Button(L.T("Vibración: ", "Vibration: ") + Settings.VibModeNames[mCfg.VibMode], false,
+            () => { mCfg.VibMode = (mCfg.VibMode + 1) % 3; mCfg.Save(this); Refresh(); TestVibration(); }));
+        if (mCfg.VibMode != 2)
+            video.AddView(T.Button(L.T($"Fuerza de la vibración: {mCfg.Vibration} %", $"Vibration strength: {mCfg.Vibration} %"), false,
+                () => { mCfg.Vibration = mCfg.Vibration >= 100 ? 25 : mCfg.Vibration + 25; mCfg.Save(this); Refresh(); TestVibration(); }));
+        video.AddView(T.Text(mCfg.VibMode == 1
+            ? L.T("De tranquis: solo los golpes y las caídas de los personajes. Sin temblores de pantalla (el título y los menús tiemblan con la música) ni explosiones, puertas o cristales.",
+                  "Chill: only the characters' hits and falls. No screen shakes (the title and menus shake with the music), explosions, doors or glass.")
+            : L.T("Rock And Roll Baby: golpes, caídas, explosiones y todos los temblores de pantalla, también los del título y los menús. Vibra el mando si tiene motor; si no, la consola.",
+                  "Rock And Roll Baby: hits, falls, explosions and every screen shake, including the title and menus. The gamepad vibrates if it has a motor; otherwise, the console."), 13, LauncherTheme.MUTED));
         video.AddView(T.Button(L.T("Música del launcher: ", "Launcher music: ") + (mCfg.Music ? L.T("sí", "on") : L.T("no", "off")), false,
             () => { mCfg.Music = !mCfg.Music; mCfg.Save(this); LauncherMusic.Update(this); Refresh(); }));
 
@@ -115,18 +131,16 @@ public partial class MainActivity : Activity
         BuildNetCard();
 
         var help = T.Card(mRoot, L.T("Ayuda", "Help"));
-        help.AddView(T.Text(L.T("Partida de PC (GOG): %USERPROFILE%\\AppData\\LocalLow\\sebagamesdev\\gog\\fightnrage\\savedata\\data.sav\nSi algo falla: «Guardar registro en Descargas» y pásame ese archivo.",
-            "PC save (GOG): %USERPROFILE%\\AppData\\LocalLow\\sebagamesdev\\gog\\fightnrage\\savedata\\data.sav\nIf something goes wrong: \"Save log to Downloads\" and send me that file."), 13, LauncherTheme.MUTED));
+        help.AddView(T.Text(L.T("Si algo falla: «Guardar registro en Descargas» y pásame ese archivo.", "If something goes wrong: \"Save log to Downloads\" and send me that file."), 13, LauncherTheme.MUTED));
         help.AddView(T.Button(L.T("Guardar registro en Descargas", "Save log to Downloads"), false, () => ExportLog(false)));
         help.AddView(T.Button(L.T("Compartir registro", "Share log"), false, () => ExportLog(true)));
     }
 
     void TestVibration()
     {
-        if (mCfg.Vibration <= 0) return;
+        if (mCfg.VibMode == 2) return;
         Haptics.Init(this);
-        Rumble.Strength = mCfg.Vibration / 100f;
-        Haptics.Vibrate(90, 220);
+        Haptics.Vibrate(mCfg.VibMode == 1 ? 60 : 120, Math.Clamp(255 * mCfg.Vibration / 100, 1, 255));
     }
 
     partial void BuildNetCardImpl(ref bool done);
@@ -186,6 +200,28 @@ public partial class MainActivity : Activity
         if (resultCode != Result.Ok || data?.Data == null) return;
         if (requestCode == ReqFolder) CopyGame(data.Data);
         else if (requestCode == ReqSave) ImportSave(data.Data);
+        else if (requestCode == ReqExport) ExportSave(data.Data);
+    }
+
+    void PickExport()
+    {
+        var i = new Intent(Intent.ActionCreateDocument);
+        i.AddCategory(Intent.CategoryOpenable);
+        i.SetType("application/octet-stream");
+        i.PutExtra(Intent.ExtraTitle, "data.sav");
+        StartActivityForResult(i, ReqExport);
+    }
+
+    void ExportSave(Android.Net.Uri uri)
+    {
+        try
+        {
+            using (var output = ContentResolver.OpenOutputStream(uri, "wt"))
+            using (var input = File.OpenRead(SavePath))
+                input.CopyTo(output);
+            Toast.MakeText(this, L.T("Partida exportada", "Save exported"), ToastLength.Long).Show();
+        }
+        catch (Exception ex) { Toast.MakeText(this, L.T("No se pudo exportar: ", "Could not export: ") + ex.Message, ToastLength.Long).Show(); }
     }
 
     void ImportSave(Android.Net.Uri uri)
@@ -196,6 +232,7 @@ public partial class MainActivity : Activity
             if (File.Exists(SavePath)) File.Copy(SavePath, SavePath + ".bak", true);
             using (var input = ContentResolver.OpenInputStream(uri))
             using (var output = File.Create(SavePath)) input.CopyTo(output);
+            try { File.Delete(SavePath + ".pad2"); } catch { } // revisar sus mandos con la configuración nueva
             Toast.MakeText(this, L.T("Partida importada (la anterior queda como data.sav.bak)", "Save imported (the previous one is kept as data.sav.bak)"), ToastLength.Long).Show();
         }
         catch (Exception ex) { Toast.MakeText(this, L.T("No se pudo importar: ", "Could not import: ") + ex.Message, ToastLength.Long).Show(); }

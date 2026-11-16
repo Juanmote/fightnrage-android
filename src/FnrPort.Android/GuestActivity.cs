@@ -175,7 +175,8 @@ public class GuestActivity : Activity, ISurfaceHolderCallback, IPadSink
                 lastInfo = now;
                 bool waiting = now - lastFrame > 700;
                 int ping = NetSession.PingMs;
-                string t = waiting ? L.T("Esperando al anfitrión...", "Waiting for the host...") : (ping >= 0 ? L.T("En red", "Online") + $" · {ping} ms" : L.T("En red", "Online"));
+                string me = L.T($"En red · jugador {NetSession.PlayerNumber}", $"Online · player {NetSession.PlayerNumber}");
+                string t = waiting ? L.T("Esperando al anfitrión...", "Waiting for the host...") : (ping >= 0 ? me + $" · {ping} ms" : me);
                 t += L.T("   (salir: Atrás, o SELECT + START 1,5 s)", "   (exit: Back, or SELECT + START 1.5 s)");
                 RunOnUiThread(() => mInfo.Text = t);
             }

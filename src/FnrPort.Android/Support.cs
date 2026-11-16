@@ -106,18 +106,23 @@ sealed class Settings
     public int TouchAlpha = 45;   // opacidad de los botones táctiles (%)
     public int TouchSize = 100;   // tamaño de los botones táctiles (%)
     public int Profile;           // 0 = principal (desde cero), 1 = todo desbloqueado
-    public int Vibration = 70;    // 0 = sin vibración ... 100
+    public int Vibration = 75;    // fuerza de la vibración: 25 ... 100
+    public int VibMode;           // 0 = Rock And Roll Baby (todo), 1 = De tranquis (solo golpes y caídas), 2 = sin vibración
     public bool Music = true;     // música del launcher
 
     public static Settings Load(Context ctx)
     {
         var p = ctx.GetSharedPreferences("fnr", FileCreationMode.Private);
-        return new Settings
+        var st = new Settings
         {
             Scale = p.GetInt("scale", 0), Sound = p.GetBoolean("sound", true), Format = p.GetInt("format", 0),
             TouchAuto = p.GetBoolean("touch_auto", true), TouchAlpha = p.GetInt("touch_alpha", 45), TouchSize = p.GetInt("touch_size", 100),
-            Profile = p.GetInt("profile", 0), Vibration = p.GetInt("vibration", 70), Music = p.GetBoolean("music", true),
+            Profile = p.GetInt("profile", 0), Vibration = p.GetInt("vibration", 75), VibMode = p.GetInt("vib_mode", -1), Music = p.GetBoolean("music", true),
         };
+        // v0.1.12 tenía solo la fuerza (0 = sin vibración)
+        if (st.VibMode < 0 || st.VibMode > 2) st.VibMode = st.Vibration == 0 ? 2 : 0;
+        if (st.Vibration < 25) st.Vibration = 75;
+        return st;
     }
 
     public void Save(Context ctx)
@@ -125,11 +130,13 @@ sealed class Settings
         var p = ctx.GetSharedPreferences("fnr", FileCreationMode.Private).Edit();
         p.PutInt("scale", Scale); p.PutBoolean("sound", Sound); p.PutInt("format", Format);
         p.PutBoolean("touch_auto", TouchAuto); p.PutInt("touch_alpha", TouchAlpha); p.PutInt("touch_size", TouchSize);
-        p.PutInt("profile", Profile); p.PutInt("vibration", Vibration); p.PutBoolean("music", Music);
+        p.PutInt("profile", Profile); p.PutInt("vibration", Vibration); p.PutInt("vib_mode", VibMode); p.PutBoolean("music", Music);
         p.Apply();
     }
 
     public static string[] FormatNames => new[] { "16:9 (original)", L.T("4:3 (recorta los laterales)", "4:3 (crops the sides)"), L.T("8:7 (recorta los laterales)", "8:7 (crops the sides)") };
+
+    public static string[] VibModeNames => new[] { "Rock And Roll Baby", L.T("De tranquis", "Chill"), L.T("sin vibración", "off") };
 
     public static string[] ProfileNames => new[] { L.T("Principal", "Main"), L.T("Todo desbloqueado", "Everything unlocked") };
 

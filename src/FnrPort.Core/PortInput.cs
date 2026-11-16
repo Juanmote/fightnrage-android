@@ -30,7 +30,7 @@ public class PortInput : IInputEngine
     readonly HashSet<int> mDownKeys = new();
     public bool UnifyLeftAnalogIntoDpad = true;
     public bool TreatAnalogsAsDpad = true;
-    int mGuestSlot = -1;
+    readonly int[] mGuestSlot = { -1, -1 };
 
     public event Action<int> KeyPressed;
     public event Action<int> KeyReleased;
@@ -76,18 +76,21 @@ public class PortInput : IInputEngine
     /// <summary>Actualiza los 8 mandos a partir de lo que ve la plataforma (una vez por frame).</summary>
     public void UpdatePads(PadSnapshot[] snaps)
     {
-        // Juego en red: los botones del invitado entran como un mando más, en el primer hueco libre.
-        if (FnrPort.Net.NetSession.GuestPad(out var guest))
+        // Juego en red: los botones de cada invitado (jugadores 2 y 3) entran como un mando más, en un hueco libre.
+        bool anyGuest = false;
+        for (int g = 0; g < FnrPort.Net.NetSession.MaxGuests; g++)
         {
-            snaps = snaps == null ? new PadSnapshot[MaxPads] : (PadSnapshot[])snaps.Clone();
-            if (mGuestSlot < 0 || mGuestSlot >= snaps.Length || snaps[mGuestSlot].Connected)
+            if (!FnrPort.Net.NetSession.GuestPad(g, out var guest)) { mGuestSlot[g] = -1; continue; }
+            if (!anyGuest) { snaps = snaps == null ? new PadSnapshot[MaxPads] : (PadSnapshot[])snaps.Clone(); anyGuest = true; }
+            int slot = mGuestSlot[g];
+            if (slot < 0 || slot >= snaps.Length || snaps[slot].Connected)
             {
-                mGuestSlot = -1;
-                for (int i = 0; i < snaps.Length; i++) if (!snaps[i].Connected) { mGuestSlot = i; break; }
+                slot = -1;
+                for (int i = 0; i < snaps.Length; i++) if (!snaps[i].Connected) { slot = i; break; }
             }
-            if (mGuestSlot >= 0) snaps[mGuestSlot] = guest;
+            mGuestSlot[g] = slot;
+            if (slot >= 0) snaps[slot] = guest;
         }
-        else mGuestSlot = -1;
         for (int i = 0; i < MaxPads; i++)
         {
             var st = mPads[i];

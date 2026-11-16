@@ -164,3 +164,19 @@ Réplica de `FModAudioImplementation` (descompilada del exe con un volcador de I
 - **Launcher** en castellano/inglés (`FnrPort.Lang`, según el idioma del sistema), música propia en bucle
   (`res/raw/launcher_theme.ogg`), pestaña de logros (`AchievementsActivity`), icono rehecho sin cortar los laterales.
 - Workflow: sin artefactos (la APK va solo a la release).
+
+
+## Versión 0.1.14 (16-11-2026): red a 3 jugadores, modos de vibración, partidas y salida
+
+- **Juego en red a 3**: el anfitrión admite 2 invitados (jugadores 2 y 3). Cada uno tiene su conexión, su cola de envío y
+  su imagen de referencia (el vídeo se codifica aparte para cada uno; el sonido es el mismo paquete). Protocolo versión 2:
+  BIENVENIDO lleva el número de jugador y LLENA rechaza a un cuarto. Probado en PC con 3 clientes (2 dentro, el 3.º rechazado).
+- **Vibración**: «Rock And Roll Baby» (todo) y «De tranquis» (solo golpes y caídas de personajes: sin temblores de pantalla
+  —el título y los menús tiemblan con la música: ~66 temblores en 40 s— ni explosiones, puertas, cristales...). Fuerza aparte.
+  En PC, `FNR_RUMBLELOG=1` escribe cada vibración y su causa.
+- **Partidas**: tarjeta propia con Exportar (selector de Android, nombre data.sav) e Importar. Al importar se vuelve a
+  revisar la configuración de mandos. Formato igual en GOG y Steam (XML con gzip); rutas de PC en el launcher.
+- **Salir del juego** cierra toda la app (FinishAndRemoveTask + fin del proceso), sin pasar por el launcher.
+- **Logros comprobados** por el camino normal del juego: `FNR_TESTREQ=NOMBRE` (solo PC) llama a `SaveData.MeetNewRequeriment`
+  a los 10 s → el juego avisa con `Constants.REQ` → queda guardado. También al cargar una partida con requisitos y, en el
+  perfil desbloqueado, no se guarda nada.

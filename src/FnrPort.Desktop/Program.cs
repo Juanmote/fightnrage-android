@@ -111,6 +111,9 @@ public static class Program
                 core.AfterRender += _ => Renderer.DrawCalls = 0;
             }
         };
+        // FNR_RUMBLELOG: escribe cada vibración (para ajustar la vibración sin consola)
+        if (Environment.GetEnvironmentVariable("FNR_RUMBLELOG") != null)
+            Rumble.Sink = (ms, amp) => Console.WriteLine($"[Rumble] {ms} ms, {amp} · {Rumble.LastSource}");
         int rc = GameLauncher.Run(host, opts);
         if (Environment.GetEnvironmentVariable("FNR_LIST_ASSEMBLIES") == "1")
             foreach (var a in AppDomain.CurrentDomain.GetAssemblies()) Console.WriteLine("[asm] " + a.GetName().Name + " | " + a.Location);

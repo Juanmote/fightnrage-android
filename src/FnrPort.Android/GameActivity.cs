@@ -114,7 +114,15 @@ public class GameActivity : Activity, ISurfaceHolderCallback
                 return;
             }
             sRunning = false; sThread = null; sHost = null;
-            RunOnUiThread(Finish);
+            // Al salir del juego se cierra todo (también el launcher), como un juego de PC.
+            try { FnrPort.Net.NetSession.Stop(); } catch { }
+            Log.Write("Salida del juego: se cierra la app");
+            RunOnUiThread(() =>
+            {
+                LauncherMusic.Release();
+                FinishAndRemoveTask();
+                new Handler(Looper.MainLooper).PostDelayed(() => Android.OS.Process.KillProcess(Android.OS.Process.MyPid()), 400);
+            });
         }, 64 * 1024 * 1024) { Name = "FnrGame" };
         sThread.Start();
     }
@@ -125,7 +133,8 @@ public class GameActivity : Activity, ISurfaceHolderCallback
         var cfg = Settings.Load(this);
         Haptics.Init(this);
         FnrPort.Rumble.Strength = cfg.Vibration / 100f;
-        FnrPort.Rumble.Sink = cfg.Vibration > 0 ? new Action<int, int>(Haptics.Vibrate) : null;
+        FnrPort.Rumble.Calm = cfg.VibMode == 1;
+        FnrPort.Rumble.Sink = cfg.VibMode != 2 ? new Action<int, int>(Haptics.Vibrate) : null;
         mGameStart = Java.Lang.JavaSystem.CurrentTimeMillis();
         mImported = 0;
         FnrPort.Achievements.OnUnlocked = OnAchievement;
@@ -186,8 +195,8 @@ public class GameActivity : Activity, ISurfaceHolderCallback
             if (IsFinishing || IsDestroyed) return;
             int ev = FnrPort.Net.NetSession.HostEvent();
             long now = Java.Lang.JavaSystem.CurrentTimeMillis();
-            if (ev == 1) { eventText = L.T("Ha entrado el jugador en red", "The online player has joined"); eventUntil = now + 4000; }
-            if (ev == 2) { eventText = L.T("El jugador en red se ha ido", "The online player has left"); eventUntil = now + 4000; }
+            if (ev % 10 == 1) { eventText = L.T($"Ha entrado el jugador {ev / 10} por red (que pulse START)", $"Player {ev / 10} has joined online (press START)"); eventUntil = now + 4000; }
+            if (ev % 10 == 2) { eventText = L.T($"El jugador {ev / 10} se ha ido de la partida en red", $"Player {ev / 10} has left the online game"); eventUntil = now + 4000; }
             string t = now < eventUntil ? eventText : FnrPort.Net.NetSession.HostStatus();
             mNetInfo.Text = t;
             mNetInfo.Visibility = string.IsNullOrEmpty(t) ? ViewStates.Gone : ViewStates.Visible;

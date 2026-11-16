@@ -15,16 +15,16 @@ public partial class MainActivity
     {
         done = true;
         bool installed = GameLauncher.Validate(GameDir) == null;
-        var nc = T.Card(mRoot, L.T("Juego en red (2 jugadores)", "Netplay (2 players)"));
+        var nc = T.Card(mRoot, L.T("Juego en red (hasta 3 jugadores)", "Netplay (up to 3 players)"));
         if (installed) nc.AddView(T.Button(L.T("Crear partida (anfitrión)", "Host a game"), false, HostGame, !mBusy));
         nc.AddView(T.Button(L.T("Unirse en la misma wifi", "Join on the same wifi"), false, JoinWifi, !mBusy));
         nc.AddView(T.Button(L.T("Unirse por internet (código o IP)", "Join over the internet (code or IP)"), false, AskCode, !mBusy));
-        nc.AddView(T.Text(L.T("Quien crea la partida juega con su copia del juego y ve arriba su IP de la wifi y un código de 8 letras para internet. " +
-            "El otro no necesita el juego: ve la imagen, oye el sonido y juega con su mando o los táctiles como un jugador más " +
-            "(en el juego, que pulse START para entrar). Las dos consolas necesitan esta misma versión de la app.",
-            "Whoever hosts plays with their copy of the game and sees their wifi IP and an 8-letter internet code at the top. " +
-            "The other player doesn't need the game: they see the picture, hear the sound and play with their gamepad or the touch controls as one more player " +
-            "(in the game, press START to join). Both consoles need this same version of the app."), 13, LauncherTheme.MUTED));
+        nc.AddView(T.Text(L.T("Quien crea la partida juega con su copia del juego y ve arriba su IP de la wifi y un código de 8 letras para internet. Pueden entrar dos invitados con el mismo código o IP (jugadores 2 y 3). " +
+            "Los invitados no necesitan el juego: ven la imagen, oyen el sonido y juegan con su mando o los táctiles como un jugador más " +
+            "(en el juego, que pulsen START para entrar). Todas las consolas necesitan esta misma versión de la app.",
+            "Whoever hosts plays with their copy of the game and sees their wifi IP and an 8-letter internet code at the top. Two guests can join with the same code or IP (players 2 and 3). " +
+            "Guests don't need the game: they see the picture, hear the sound and play with their gamepad or the touch controls as one more player " +
+            "(in the game, press START to join). Every console needs this same version of the app."), 13, LauncherTheme.MUTED));
     }
 
     void HostGame()

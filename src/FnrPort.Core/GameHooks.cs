@@ -40,8 +40,23 @@ public static class GameHooks
     static void SetAllContent() => BeatEmUpGame.Program.ENABLED_ALL_CONTENT = true;
 
     /// <summary>Una vez por actualización del juego (60 por segundo).</summary>
+    static int sTicks;
+    static readonly string sTestReq = Environment.GetEnvironmentVariable("FNR_TESTREQ");
+
     internal static void Tick()
     {
+        // Prueba (solo PC): FNR_TESTREQ=NOMBRE hace que el juego consiga ese requisito a los 10 s, por su camino normal.
+        if (sTestReq != null && ++sTicks == 600)
+            try
+            {
+                var sd = Type.GetType("BeatEmUpGame.Data.SaveData, FIGHT_N_RAGE");
+                var req = Enum.Parse(Type.GetType("BeatEmUpGame.Constants+REQ, FIGHT_N_RAGE"), sTestReq);
+                var inst = sd.GetProperty("Inst", BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+                sd.GetMethod("MeetNewRequeriment", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Invoke(inst, new[] { req });
+                Console.WriteLine("[FnrPort] Prueba: requisito " + sTestReq + " conseguido");
+            }
+            catch (Exception ex) { Console.WriteLine("[FnrPort] Prueba de requisito: " + ex); }
+
         if (!sTextsDone && (++sTextTries % 30) == 1) sTextsDone = PatchTexts();
         ShakeRumble();
     }
@@ -116,7 +131,7 @@ public static class GameHooks
             if (sWorldShake != null)
             {
                 float w = (float)sWorldShake.GetValue(f);
-                if (w > sLastWorld + 0.02f) Rumble.Fire((int)Math.Clamp(w * 1000f, 80, 450), 220);
+                if (w > sLastWorld + 0.02f) Rumble.Fire((int)Math.Clamp(w * 1000f, 80, 450), 220, "temblor de pantalla");
                 sLastWorld = w;
             }
             if (sGroundShake != null)
@@ -125,7 +140,7 @@ public static class GameHooks
                 if (g < sLastGround - 0.05f && g < 0.2f)
                 {
                     float mag = sGroundMag != null ? (float)sGroundMag.GetValue(f) : 4f;
-                    Rumble.Fire((int)Math.Clamp(120 + mag * 25, 120, 400), (int)Math.Clamp(120 + mag * 20, 140, 255));
+                    Rumble.Fire((int)Math.Clamp(120 + mag * 25, 120, 400), (int)Math.Clamp(120 + mag * 20, 140, 255), "temblor del suelo");
                 }
                 sLastGround = g;
             }
@@ -141,12 +156,22 @@ public static class Rumble
     public static Action<int, int> Sink;
     /// <summary>0..1 (ajuste del launcher).</summary>
     public static float Strength = 1f;
+    /// <summary>
+    /// «De tranquis»: solo golpes y caídas de los personajes. Sin temblores de pantalla (el título y los menús
+    /// tiemblan al ritmo de la música) ni explosiones, puertas, cristales, bidones...
+    /// </summary>
+    public static bool Calm;
 
     static long sUntil;
     static int sAmp;
 
-    public static void Fire(int ms, int amp)
+    /// <summary>Qué ha provocado la última vibración (para el registro).</summary>
+    public static string LastSource = "";
+
+    public static void Fire(int ms, int amp, string source = "", bool calmOk = false)
     {
+        if (Calm && !calmOk) return;
+        LastSource = source;
         var sink = Sink;
         if (sink == null || Strength <= 0f || ms <= 0) return;
         long now = Environment.TickCount64;
@@ -157,18 +182,21 @@ public static class Rumble
         try { sink(ms, a); } catch { }
     }
 
-    /// <summary>Vibración para cada efecto de sonido del juego (por nombre de archivo). 0 = nada.</summary>
-    public static (int ms, int amp) ForSound(string file)
+    /// <summary>
+    /// Vibración para cada efecto de sonido del juego (por nombre de archivo). 0 = nada.
+    /// calm = también suena en el modo «De tranquis» (golpes y caídas de los personajes).
+    /// </summary>
+    public static (int ms, int amp, bool calm) ForSound(string file)
     {
-        if (string.IsNullOrEmpty(file)) return (0, 0);
+        if (string.IsNullOrEmpty(file)) return (0, 0, false);
         string n = Path.GetFileNameWithoutExtension(file.Replace('\\', '/')).ToLowerInvariant();
-        if (n.StartsWith("rock_huge_impact")) return (220, 255);
-        if (n.StartsWith("final_") || n == "whiplash_strong" || n == "impact0" || n.StartsWith("hit_on_metal") || n == "metal_pipe"
-            || n == "bone_crushed" || n == "broken_window" || n == "door_break" || n == "drum_break" || n == "concrete_impact"
-            || n == "marble_impact" || n.StartsWith("shotgun")) return (75, 210);
-        if (n == "body_fall" || n == "bone_fall") return (60, 150);
-        if (n.StartsWith("punch") || n.StartsWith("kick") || n == "slap" || n == "cut0" || n == "whiplash_light") return (32, 110);
-        return (0, 0);
+        if (n.StartsWith("rock_huge_impact")) return (220, 255, false);
+        if (n == "impact0" || n.StartsWith("hit_on_metal") || n == "metal_pipe" || n == "broken_window" || n == "door_break"
+            || n == "drum_break" || n == "concrete_impact" || n == "marble_impact" || n.StartsWith("shotgun")) return (75, 210, false);
+        if (n.StartsWith("final_") || n == "whiplash_strong" || n == "bone_crushed") return (75, 210, true);
+        if (n == "body_fall" || n == "bone_fall") return (60, 150, true);
+        if (n.StartsWith("punch") || n.StartsWith("kick") || n == "slap" || n == "cut0" || n == "whiplash_light") return (32, 110, true);
+        return (0, 0, false);
     }
 }
 

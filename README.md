@@ -25,7 +25,7 @@ Si algo falla, el registro está en `Android/data/com.juanmote.fightnrage/files/
 | Mando / teclado | ✅ probado en la Odin 3 |
 | Partidas (compatibles con PC) | ✅ |
 | Sonido (efectos y música con bucles) | ✅ |
-| Juego en red (wifi e internet) | 🧪 |
+| Juego en red (wifi e internet, hasta 3 jugadores) | 🧪 |
 | Perfiles: principal y «todo desbloqueado» | 🧪 v0.1.12 |
 | Logros de Steam en el launcher (guardados en la consola) | 🧪 v0.1.12 |
 | Vibración (golpes, caídas, temblores) | 🧪 v0.1.12 |
@@ -41,7 +41,7 @@ Si algo falla, el registro está en `Android/data/com.juanmote.fightnrage/files/
   Los de una partida importada de PC aparecen al jugar con ella. No se sincronizan con Steam.
 - **Mando**: de serie Y golpe, B salto, A especial (como en la Odin). En *Configure Controls*: SELECT vuelve a
   configurar y START acepta. Los botones C y Z (Retroid Pocket Classic) se pueden asignar.
-- **Vibración** (el juego no tiene): golpes, caídas y temblores de pantalla; vibra el mando si tiene motor.
+- **Vibración** (el juego no tiene): «Rock And Roll Baby» (golpes, caídas, explosiones y temblores) o «De tranquis» (solo golpes y caídas); vibra el mando si tiene motor.
 - **Créditos**: «- Ported by Juanmote -» al final de la pantalla de créditos y en el título.
 - **Launcher** en castellano o inglés según el idioma del sistema, con una canción propia
   (`tools/compose_launcher_theme.py`, se puede quitar en el launcher).
