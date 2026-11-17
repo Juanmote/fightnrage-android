@@ -32,7 +32,7 @@ jobs:
       - name: Comprobar que el backend compila (escritorio)
         run: dotnet build src/FnrPort.Desktop -c Release
 
-      - name: Logros de Steam (nombres, descripciones e iconos)
+      - name: Logros de Steam (actualiza los del repo si Steam responde)
         continue-on-error: true
         run: |
           mkdir -p src/FnrPort.Android/Assets/achievements
