@@ -76,21 +76,7 @@ public class PortInput : IInputEngine
     /// <summary>Actualiza los 8 mandos a partir de lo que ve la plataforma (una vez por frame).</summary>
     public void UpdatePads(PadSnapshot[] snaps)
     {
-        // Juego en red: los botones de cada invitado (jugadores 2 y 3) entran como un mando más, en un hueco libre.
-        bool anyGuest = false;
-        for (int g = 0; g < FnrPort.Net.NetSession.MaxGuests; g++)
-        {
-            if (!FnrPort.Net.NetSession.GuestPad(g, out var guest)) { mGuestSlot[g] = -1; continue; }
-            if (!anyGuest) { snaps = snaps == null ? new PadSnapshot[MaxPads] : (PadSnapshot[])snaps.Clone(); anyGuest = true; }
-            int slot = mGuestSlot[g];
-            if (slot < 0 || slot >= snaps.Length || snaps[slot].Connected)
-            {
-                slot = -1;
-                for (int i = 0; i < snaps.Length; i++) if (!snaps[i].Connected) { slot = i; break; }
-            }
-            mGuestSlot[g] = slot;
-            if (slot >= 0) snaps[slot] = guest;
-        }
+        snaps = PlaceGuests(snaps);
         for (int i = 0; i < MaxPads; i++)
         {
             var st = mPads[i];
@@ -125,6 +111,70 @@ public class PortInput : IInputEngine
             st.SetButtonState(13u, p.C); st.SetButtonState(14u, p.Z);
             mPads[i] = st;
         }
+    }
+
+    // Juego en red: los botones de cada invitado (jugadores 2 y 3) entran como un mando más. El juego ata cada
+    // jugador al NÚMERO de mando con el que entró, así que el hueco del invitado no puede cambiar en toda la
+    // partida: si después aparece un mando local nuevo (otro deviceId del mando integrado, un gatillo o un
+    // stick que llega por otro dispositivo, los táctiles...) y cae en ese hueco, es el mando local el que se
+    // aparta a otro libre. Antes era al revés: el invitado se movía de número y el juego dejaba de leerlo en
+    // la partida (los menús sí, porque aceptan cualquier mando).
+    readonly int[] mLocalSlot = { -1, -1, -1, -1, -1, -1, -1, -1 };
+    readonly PadSnapshot[] mGuestSnap = new PadSnapshot[2];
+    readonly bool[] mGuestOn = new bool[2];
+
+    PadSnapshot[] PlaceGuests(PadSnapshot[] local)
+    {
+        int ng = FnrPort.Net.NetSession.MaxGuests;
+        bool any = false;
+        for (int g = 0; g < ng; g++)
+        {
+            mGuestOn[g] = FnrPort.Net.NetSession.GuestPad(g, out mGuestSnap[g]);
+            if (!mGuestOn[g]) mGuestSlot[g] = -1; else any = true;
+        }
+        if (!any)
+        {
+            for (int i = 0; i < MaxPads; i++) mLocalSlot[i] = -1;
+            return local;
+        }
+        var outp = new PadSnapshot[MaxPads];
+        var used = new bool[MaxPads];
+        bool LocalOn(int i) => local != null && i < local.Length && local[i].Connected;
+
+        // 1) los invitados que ya tienen número lo conservan
+        for (int g = 0; g < ng; g++)
+        {
+            int s = mGuestSlot[g];
+            if (!mGuestOn[g] || s < 0 || s >= MaxPads || used[s]) { if (mGuestOn[g]) mGuestSlot[g] = -1; continue; }
+            used[s] = true;
+        }
+        // 2) los mandos locales: el hueco al que ya se apartaron, o el suyo, o el primero libre
+        for (int i = 0; i < MaxPads; i++)
+        {
+            if (!LocalOn(i)) { mLocalSlot[i] = -1; continue; }
+            int s = mLocalSlot[i];
+            if (s < 0 || s >= MaxPads || used[s]) s = used[i] ? -1 : i;
+            if (s < 0) for (int k = 0; k < MaxPads; k++) if (!used[k] && !LocalOn(k)) { s = k; break; }
+            if (s < 0) for (int k = 0; k < MaxPads; k++) if (!used[k]) { s = k; break; }
+            if (s < 0) continue;
+            if (s != i && s != mLocalSlot[i]) Console.WriteLine($"[FnrNet] El mando local {i} pasa al número {s} (el {i} es de un invitado)");
+            mLocalSlot[i] = s; used[s] = true; outp[s] = local[i];
+        }
+        // 3) los invitados nuevos: el primer número libre
+        for (int g = 0; g < ng; g++)
+        {
+            if (!mGuestOn[g]) continue;
+            int s = mGuestSlot[g];
+            if (s < 0)
+            {
+                for (int k = 0; k < MaxPads; k++) if (!used[k]) { s = k; break; }
+                if (s < 0) continue;
+                mGuestSlot[g] = s; used[s] = true;
+                Console.WriteLine($"[FnrNet] El jugador en red {g + 2} usa el mando número {s}");
+            }
+            outp[s] = mGuestSnap[g];
+        }
+        return outp;
     }
 }
 
