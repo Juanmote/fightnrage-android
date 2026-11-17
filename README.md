@@ -17,20 +17,22 @@ Compra el juego para apoyar a su creador, Sebastián García (SebaGamesDev).
 
 Si algo falla, el registro está en `Android/data/com.juanmote.fightnrage/files/log.txt`.
 
-## Estado
+## Estado (versión 1.0)
+
+Probado en Odin 3, Retroid Pocket Classic y 476H. Novedades de la 1.0 en [docs/notas/v1.0.md](docs/notas/v1.0.md).
 
 | | |
 |---|---|
 | Gráficos (OpenGL ES, shaders, efecto CRT) | ✅ |
-| Mando / teclado | ✅ probado en la Odin 3 |
+| Mando / teclado | ✅ |
 | Partidas (compatibles con PC) | ✅ |
 | Sonido (efectos y música con bucles) | ✅ |
-| Juego en red (wifi e internet, hasta 3 jugadores) | 🧪 |
-| Perfiles: principal y «todo desbloqueado» | 🧪 v0.1.12 |
-| Logros de Steam en el launcher (guardados en la consola) | 🧪 v0.1.12 |
-| Vibración (golpes, caídas, temblores) | 🧪 v0.1.12 |
-| Controles táctiles con arte propio | 🧪 v0.1.12 |
-| Launcher en castellano/inglés con música propia | 🧪 v0.1.12 |
+| Juego en red (wifi e internet, hasta 3 jugadores) | ✅ |
+| Perfiles: principal y «todo desbloqueado» | ✅ |
+| Logros de Steam en el launcher (guardados en la consola) | ✅ |
+| Vibración (golpes, caídas, temblores) | ✅ |
+| Controles táctiles con arte propio | ✅ |
+| Launcher en castellano/inglés con música propia | ✅ |
 
 ### Añadidos del port
 

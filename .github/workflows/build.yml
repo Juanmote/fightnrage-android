@@ -14,6 +14,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Número de versión
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # VERSION dice la versión (p. ej. 1.0). La primera compilación de cada versión sale como v1.0;
+          # las siguientes, como v1.0.<número de compilación>, hasta que se cambie VERSION.
+          base=$(tr -d ' \r\n' < VERSION)
+          if gh release view "v$base" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then ver="$base.${{ github.run_number }}"; else ver="$base"; fi
+          echo "FNR_BASE=$base" >> "$GITHUB_ENV"
+          echo "FNR_VER=$ver" >> "$GITHUB_ENV"
+          echo "Versión: $ver"
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
@@ -90,7 +102,7 @@ jobs:
             ks="$RUNNER_TEMP/fnr.keystore"; FNR_KS_PASS="$FNR_KEYSTORE_PASS"
           fi
           extra="-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=$ks -p:AndroidSigningKeyAlias=fnr -p:AndroidSigningKeyPass=env:FNR_KS_PASS -p:AndroidSigningStorePass=env:FNR_KS_PASS"
-          cd src/FnrPort.Android && dotnet build -c Release -r android-arm64 --no-restore $extra -p:ApplicationVersion=${{ github.run_number }} -p:ApplicationDisplayVersion=0.1.${{ github.run_number }}
+          cd src/FnrPort.Android && dotnet build -c Release -r android-arm64 --no-restore $extra -p:ApplicationVersion=${{ github.run_number }} -p:ApplicationDisplayVersion=$FNR_VER
 
       - name: Revisar la APK
         run: |
@@ -111,9 +123,10 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           set -e
-          tag="v0.1.${{ github.run_number }}"
+          tag="v$FNR_VER"
           apk=$(ls salida/*.apk | head -1)
           cp "$apk" "salida/FightNRage-Android-$tag.apk"
+          if [ "$FNR_VER" = "$FNR_BASE" ] && [ -f "docs/notas/v$FNR_BASE.md" ]; then cp "docs/notas/v$FNR_BASE.md" notas.md; else
           {
             echo "Compilación automática del commit ${GITHUB_SHA::7}."
             echo
@@ -121,4 +134,5 @@ jobs:
             echo
             echo "Necesitas tu copia del juego de PC (GOG o Steam): la carpeta con FIGHT_N_RAGE.exe y data."
           } > notas.md
+          fi
           gh release create "$tag" "salida/FightNRage-Android-$tag.apk" --title "Fight'N Rage Android $tag" --notes-file notas.md --latest
