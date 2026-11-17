@@ -11,3 +11,4 @@ FIGHT_N_RAGE*
 src/FnrPort.Android/Assets/facades/*.dll
 capturas/
 *.keystore
+!signing/fnr.keystore
