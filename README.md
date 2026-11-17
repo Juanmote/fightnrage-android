@@ -40,8 +40,13 @@ Si algo falla, el registro está en `Android/data/com.juanmote.fightnrage/files/
 - **Logros**: los 20 de Steam con nombre, descripción e icono (los baja el workflow de la web de Steam), con fecha.
   Los de una partida importada de PC aparecen al jugar con ella. No se sincronizan con Steam.
 - **Mando**: de serie Y golpe, B salto, A especial (como en la Odin). En *Configure Controls*: SELECT vuelve a
-  configurar y START acepta. Los botones C y Z (Retroid Pocket Classic) se pueden asignar.
+  configurar y START acepta. Los botones C y Z (Retroid Pocket Classic) se pueden asignar. En los menús se
+  acepta con el botón de ESPECIAL (A de serie) y se vuelve con el de SALTO (B de serie).
 - **Vibración** (el juego no tiene): «Rock And Roll Baby» (golpes, caídas, explosiones y temblores) o «De tranquis» (solo golpes y caídas); vibra el mando si tiene motor.
+- **Red a 3 jugadores**: cada invitado ve la imagen con su formato del launcher y su opción de vídeo del
+  juego (pantalla completa / ventana). La imagen se comprime en un hilo aparte y, si los dos invitados van
+  al mismo paso, una sola vez; cerrojo de wifi de baja latencia mientras se juega.
+- **Firma fija** (`signing/fnr.keystore`): cada versión se instala encima de la anterior.
 - **Créditos**: «- Ported by Juanmote -» al final de la pantalla de créditos y en el título.
 - **Launcher** en castellano o inglés según el idioma del sistema, con una canción propia
   (`tools/compose_launcher_theme.py`, se puede quitar en el launcher).

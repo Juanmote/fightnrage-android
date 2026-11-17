@@ -66,6 +66,7 @@ public static class NetSession
         public bool ForceKey = true;
         public readonly byte[] Ref = new byte[FrameMax], Tmp = new byte[FrameMax];
         public int W, H;
+        public long RefId = -1;       // qué imagen hay en Ref (-1 = ninguna)
         public Thread Send, Recv;
     }
     static readonly Peer[] sPeers = new Peer[MaxGuests];
@@ -408,15 +409,56 @@ public static class NetSession
     // --- vídeo
     static long vStatFrames, vStatBytes, vStatMax, vStatKeys;
 
+    // La compresión va en un hilo aparte (antes iba en el del juego y, con dos invitados, le robaba
+    // tiempo al anfitrión). Si llegan imágenes más deprisa de lo que se comprimen, vale la última.
+    static readonly object sEncLock = new();
+    static byte[] sPend = new byte[FrameMax], sWork = new byte[FrameMax];
+    static int sPendW, sPendH, sPendFlags;
+    static bool sPendReady;
+    static Thread sEncThread;
+    static long sFrameId;
+    // la última imagen comprimida, por si el otro invitado va justo al mismo paso (se reutiliza tal cual)
+    static long sLastRefId = -2, sLastFrameId = -1; static bool sLastKey; static byte[] sLastPacket;
+
     /// <summary>Anfitrión: manda una imagen (RGB24, fila 0 arriba) a cada invitado.</summary>
     public static void HostFrame(byte[] rgb, int w, int h, int flags)
     {
         if (sMode != Mode.Host || w > MaxW || h > MaxH) return;
-        foreach (var peer in sPeers)
-            if (peer != null && peer.Alive) PeerFrame(peer, rgb, w, h, flags);
+        lock (sEncLock)
+        {
+            Buffer.BlockCopy(rgb, 0, sPend, 0, w * h * 3);
+            sPendW = w; sPendH = h; sPendFlags = flags; sPendReady = true;
+            if (sEncThread == null || !sEncThread.IsAlive)
+            {
+                sEncThread = new Thread(EncodeLoop) { Name = "FnrNetVideo", IsBackground = true, Priority = ThreadPriority.AboveNormal };
+                sEncThread.Start();
+            }
+            Monitor.Pulse(sEncLock);
+        }
     }
 
-    static void PeerFrame(Peer pr, byte[] rgb, int w, int h, int flags)
+    static void EncodeLoop()
+    {
+        while (true)
+        {
+            int w, h, flags;
+            lock (sEncLock)
+            {
+                while (!sPendReady) { if (sMode != Mode.Host || sQuit) { sEncThread = null; return; } Monitor.Wait(sEncLock, 500); }
+                (sPend, sWork) = (sWork, sPend);
+                w = sPendW; h = sPendH; flags = sPendFlags; sPendReady = false;
+            }
+            try
+            {
+                long id = ++sFrameId;
+                foreach (var peer in sPeers)
+                    if (peer != null && peer.Alive) PeerFrame(peer, sWork, w, h, flags, id);
+            }
+            catch (Exception ex) { Console.WriteLine("[FnrNet] vídeo: " + ex.Message); }
+        }
+    }
+
+    static void PeerFrame(Peer pr, byte[] rgb, int w, int h, int flags, long id)
     {
         bool key;
         lock (sLock)
@@ -434,9 +476,17 @@ public static class NetSession
             pr.ForceKey = false;
         }
         int len = w * h * 3, dx = 0, dy = 0;
+        // el otro invitado ya ha comprimido esta misma imagen contra la misma de referencia: se reutiliza
+        if (sLastPacket != null && sLastFrameId == id && sLastKey == key && (key || sLastRefId == pr.RefId))
+        {
+            Buffer.BlockCopy(rgb, 0, pr.Ref, 0, len); pr.W = w; pr.H = h; pr.RefId = id;
+            PushTo(pr, sLastPacket, true);
+            return;
+        }
+        long refId = pr.RefId;
         if (key) Buffer.BlockCopy(rgb, 0, pr.Tmp, 0, len);
         else { FindShift(rgb, pr.Ref, w, h, out dx, out dy); XorShift(pr.Tmp, rgb, pr.Ref, w, h, dx, dy); }
-        Buffer.BlockCopy(rgb, 0, pr.Ref, 0, len); pr.W = w; pr.H = h;
+        Buffer.BlockCopy(rgb, 0, pr.Ref, 0, len); pr.W = w; pr.H = h; pr.RefId = id;
         var ms = new MemoryStream(len / 4 + 64);
         ms.Write(new byte[13]);
         using (var z = new ZLibStream(ms, CompressionLevel.Fastest, true)) z.Write(pr.Tmp, 0, len);
@@ -449,6 +499,7 @@ public static class NetSession
             vStatFrames++; vStatBytes += p.Length; vStatMax = Math.Max(vStatMax, p.Length); if (key) vStatKeys++;
             if (vStatFrames % 300 == 0) { Console.WriteLine($"[FnrNet] vídeo: media {vStatBytes / 300} B, máx {vStatMax} B, claves {vStatKeys}"); vStatBytes = 0; vStatMax = 0; vStatKeys = 0; }
         }
+        sLastPacket = p; sLastFrameId = id; sLastKey = key; sLastRefId = refId;
         PushTo(pr, p, true);
     }
 

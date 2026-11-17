@@ -140,6 +140,22 @@ sealed class Settings
 
     public static string[] ProfileNames => new[] { L.T("Principal", "Main"), L.T("Todo desbloqueado", "Everything unlocked") };
 
+    /// <summary>Opción de vídeo del juego guardada en la partida de esta consola: true = pantalla completa.</summary>
+    public static bool SaveStretch(Context ctx, int profile)
+    {
+        try
+        {
+            var path = SavePath(ctx, profile);
+            if (!File.Exists(path)) return true;
+            using var fs = File.OpenRead(path);
+            using var z = new System.IO.Compression.GZipStream(fs, System.IO.Compression.CompressionMode.Decompress);
+            using var r = new StreamReader(z);
+            var head = new char[4096]; int n = r.ReadBlock(head, 0, head.Length);
+            return !new string(head, 0, n).Contains("video_mode=\"SCREEN_MODE_WINDOW\"");
+        }
+        catch { return true; }
+    }
+
     /// <summary>Partida de cada perfil (formato de PC). El principal sigue en savedata/data.sav como antes.</summary>
     public static string SavePath(Context ctx, int profile)
     {
@@ -276,6 +292,29 @@ static class WifiLock
         catch (Exception ex) { Console.WriteLine("[FnrNet] MulticastLock: " + ex.Message); }
     }
     public static void Release() { try { sLock?.Release(); } catch { } }
+
+    // Cerrojo de wifi de baja latencia: evita que la wifi entre en ahorro de energía durante la partida
+    // en red (es lo que más tirones mete en la misma wifi). Android 10+: modo LOW_LATENCY; antes, HIGH_PERF.
+    static Android.Net.Wifi.WifiManager.WifiLock sFast;
+    public static void AcquireLowLatency(Context ctx)
+    {
+        try
+        {
+            if (sFast == null)
+            {
+                var wm = (Android.Net.Wifi.WifiManager)ctx.ApplicationContext.GetSystemService(Context.WifiService);
+#pragma warning disable CA1422
+                var mode = Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.Q ? (Android.Net.WifiMode)4 : (Android.Net.WifiMode)3;
+#pragma warning restore CA1422
+                sFast = wm?.CreateWifiLock(mode, "fnr-net-fast");
+                sFast?.SetReferenceCounted(false);
+            }
+            sFast?.Acquire();
+            Acquire(ctx);
+        }
+        catch (Exception ex) { Console.WriteLine("[FnrNet] WifiLock: " + ex.Message); }
+    }
+    public static void ReleaseLowLatency() { try { sFast?.Release(); } catch { } }
 }
 
 /// <summary>Textos del launcher: castellano si el sistema está en español; si no, inglés.</summary>

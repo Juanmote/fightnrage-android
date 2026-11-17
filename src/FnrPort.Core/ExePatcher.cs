@@ -33,6 +33,7 @@ public static class ExePatcher
                 TryRun("configuración de mandos", () => PatchInputConfig(ctx, plan));
                 TryRun("créditos (pantalla)", () => PatchCreditsScreen(ctx, plan));
                 TryRun("botones por defecto del mando", () => PatchDefaultPad(ctx, plan));
+                TryRun("aceptar/atrás en menús", () => PatchMenuButtons(ctx, plan));
             }
             foreach (var (off, bytes) in plan) bytes.CopyTo(d, off);
         }
@@ -295,5 +296,56 @@ public static class ExePatcher
         for (int i = Find(c.D, start, len, enterCheck); i >= 0; i = Find(c.D, i + 10, start + len - i - 10, enterCheck)) { plan.Add((i, toStart)); n++; }
         Console.WriteLine($"[FnrPort] Configurar mandos: {n} comprobaciones de teclado pasadas al mando");
         return n >= 2;
+    }
+
+    // ------------------------------------------------------------------ aceptar / atrás en los menús
+
+    /// <summary>
+    /// En el PC los menús aceptan con el botón de SALTO (A) y vuelven con el ESPECIAL (B). Con la
+    /// configuración de la Odin (B salto, A especial) quedaban al revés, así que se cambian: aceptar =
+    /// ESPECIAL (A) o START, atrás = SALTO (B) o SELECT. Igual en la elección de personaje de cada jugador.
+    /// </summary>
+    static bool PatchMenuButtons(Ctx c, List<(int, byte[])> plan)
+    {
+        var accept = c.Method("BeatEmUpGame.Data.GameSession", "IsPressedAnyAccept", 0);
+        var back = c.Method("BeatEmUpGame.Data.GameSession", "IsPressedAnyBackOnMenu", 0);
+        var sel = c.Method("BeatEmUpGame.GameStates.SelectionScreen", "UpdateCharacterSelection", 2);
+        if (sel.IsNil) foreach (var mh in c.MethodsOf("BeatEmUpGame.GameStates.SelectionScreen"))
+            if (c.Md.GetString(c.Md.GetMethodDefinition(mh).Name) == "UpdateCharacterSelection") sel = mh;
+        var btn1 = c.Method("BeatEmUpGame.Data.GameSession", "IsPressedAnyButton", 1);
+        var btn2 = c.Method("BeatEmUpGame.Data.GameSession", "IsPressedAnyButton", 2);
+        if (accept.IsNil || back.IsNil || sel.IsNil || btn1.IsNil || btn2.IsNil) return false;
+        var calls = new List<byte[]>();
+        foreach (var t in new[] { Token(btn1), Token(btn2) }) { calls.Add(Op(0x28, t)); calls.Add(Op(0x6F, t)); }
+
+        // la constante del índice (ldc.i4.N) justo antes de la llamada (o antes de un ldloca.s / ldloca)
+        int FindIndexConst(MethodDefinitionHandle mh, byte want)
+        {
+            var (start, len) = c.Body(mh);
+            if (start < 0) return -1;
+            int found = -1, count = 0;
+            foreach (var call in calls)
+                for (int i = Find(c.D, start, len, call); i >= 0; i = Find(c.D, i + 5, start + len - i - 5, call))
+                {
+                    int k = c.D[i - 2] == 0x12 ? i - 3 : c.D[i - 3] == 0xFE && c.D[i - 2] == 0x0D ? i - 5 : i - 1;
+                    if (k >= start && c.D[k] == want) { found = k; count++; }
+                }
+            return count == 1 ? found : -1;
+        }
+        int a = FindIndexConst(accept, 0x1B), b = FindIndexConst(back, 0x1C); // ldc.i4.5 (salto) / ldc.i4.6 (especial)
+        if (a < 0 || b < 0) return false;
+
+        var jmp = c.FindString("jmp"); var spc = c.FindString("spc");
+        if (jmp.IsNil || spc.IsNil) return false;
+        var (ss, sl) = c.Body(sel);
+        var ldJmp = Op(0x72, MetadataTokens.GetToken(jmp)); var ldSpc = Op(0x72, MetadataTokens.GetToken(spc));
+        int j = Find(c.D, ss, sl, ldJmp), p = Find(c.D, ss, sl, ldSpc);
+        if (j < 0 || p < 0 || Find(c.D, j + 5, ss + sl - j - 5, ldJmp) >= 0 || Find(c.D, p + 5, ss + sl - p - 5, ldSpc) >= 0) return false;
+
+        plan.Add((a, new byte[] { 0x1C })); // aceptar: especial
+        plan.Add((b, new byte[] { 0x1B })); // atrás: salto
+        plan.Add((j, ldSpc));               // elección de personaje: aceptar con "spc"
+        plan.Add((p, ldJmp));               //                        y volver con "jmp"
+        return true;
     }
 }

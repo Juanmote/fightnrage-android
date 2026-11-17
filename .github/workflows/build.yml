@@ -81,13 +81,16 @@ jobs:
           FNR_KEYSTORE_PASS: ${{ secrets.FNR_KEYSTORE_PASS }}
         run: |
           set -e
-          extra=""
-          # Firma propia opcional (secretos del repo). Sin ellos se firma con la clave de depuración.
+          # Siempre la misma firma (signing/fnr.keystore del repo, o la de los secretos si existen):
+          # así cada versión se instala encima de la anterior sin desinstalar.
+          ks="$GITHUB_WORKSPACE/signing/fnr.keystore"
+          export FNR_KS_PASS="fnrport2026"
           if [ -n "$FNR_KEYSTORE_B64" ] && [ -n "$FNR_KEYSTORE_PASS" ]; then
             echo "$FNR_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/fnr.keystore"
-            extra="-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=$RUNNER_TEMP/fnr.keystore -p:AndroidSigningKeyAlias=fnr -p:AndroidSigningKeyPass=env:FNR_KEYSTORE_PASS -p:AndroidSigningStorePass=env:FNR_KEYSTORE_PASS"
+            ks="$RUNNER_TEMP/fnr.keystore"; FNR_KS_PASS="$FNR_KEYSTORE_PASS"
           fi
-          cd src/FnrPort.Android && dotnet build -c Release -r android-arm64 --no-restore $extra
+          extra="-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=$ks -p:AndroidSigningKeyAlias=fnr -p:AndroidSigningKeyPass=env:FNR_KS_PASS -p:AndroidSigningStorePass=env:FNR_KS_PASS"
+          cd src/FnrPort.Android && dotnet build -c Release -r android-arm64 --no-restore $extra -p:ApplicationVersion=${{ github.run_number }} -p:ApplicationDisplayVersion=0.1.${{ github.run_number }}
 
       - name: Revisar la APK
         run: |

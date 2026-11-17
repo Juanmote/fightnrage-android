@@ -34,12 +34,15 @@ public class GuestActivity : Activity, ISurfaceHolderCallback, IPadSink
     readonly Dictionary<int, PadSnapshot> mPads = new();
     Settings mCfg;
     long mExitHeldSince;
+    bool mStretch = true;   // opción de imagen del juego en ESTA consola (pantalla completa / ventana)
 
     protected override void OnCreate(Bundle b)
     {
         base.OnCreate(b);
         Log.Start(this);
         mCfg = Settings.Load(this);
+        mStretch = Settings.SaveStretch(this, mCfg.Profile);
+        WifiLock.AcquireLowLatency(this);
         Window.AddFlags(WindowManagerFlags.KeepScreenOn | WindowManagerFlags.Fullscreen);
         mView = new SurfaceView(this);
         mView.Holder.AddCallback(this);
@@ -76,6 +79,7 @@ public class GuestActivity : Activity, ISurfaceHolderCallback, IPadSink
     {
         mRun = false;
         NetSession.Stop();
+        WifiLock.ReleaseLowLatency();
         base.OnDestroy();
     }
 
@@ -160,8 +164,10 @@ public class GuestActivity : Activity, ISurfaceHolderCallback, IPadSink
                         float srcW = f == 1 ? h * 4f / 3f : f == 2 ? h * 8f / 7f : w;
                         int sx = (int)((w - srcW) / 2);
                         var src = new Rect(sx, 0, sx + (int)srcW, h);
+                        // la forma de la imagen la decide esta consola: su formato del launcher y su opción
+                        // de vídeo del juego (pantalla completa = ocupa toda la pantalla; ventana = sin deformar)
                         float s = Math.Min(cw / srcW, ch / (float)h);
-                        int dw = (int)(srcW * s), dh = (int)(h * s);
+                        int dw = mStretch ? cw : (int)(srcW * s), dh = mStretch ? ch : (int)(h * s);
                         dst.Set((cw - dw) / 2, (ch - dh) / 2, (cw + dw) / 2, (ch + dh) / 2);
                         c.DrawBitmap(bmp, src, dst, paint);
                     }

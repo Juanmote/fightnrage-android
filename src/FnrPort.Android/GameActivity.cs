@@ -48,7 +48,7 @@ public class GameActivity : Activity, ISurfaceHolderCallback
         frame.AddView(mNetInfo, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent, GravityFlags.Top | GravityFlags.CenterHorizontal));
         SetContentView(frame);
         if (sThread == null) sNetHost = Intent?.GetBooleanExtra(ExtraNetHost, false) ?? false;
-        if (sNetHost) { WifiLock.Acquire(this); StartNetStatus(); }
+        if (sNetHost) { WifiLock.AcquireLowLatency(this); StartNetStatus(); }
         view.RequestFocus();
         HideSystemUi();
         try { sHost.RefreshRate = Display?.RefreshRate ?? 60; } catch { }
